@@ -44,6 +44,7 @@ from .encryptor import HAS_CRYPTO, getEncryptor
 from .version import VERSION
 from .fast_queue import FastQueue
 from .monotonic import monotonic as monotonicTime
+from .cluster_strategy import ClusterStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ class SyncObjConsumer(object):
 # https://github.com/bakwc/PySyncObj
 
 class SyncObj(object):
-    def __init__(self, selfNode, otherNodes, conf=None, consumers=None, nodeClass = TCPNode, transport = None, transportClass = TCPTransport):
+    def __init__(self, selfNode, otherNodes=set(), conf=None, consumers=None, nodeClass = TCPNode, transport = None, transportClass = TCPTransport, clustering_strategy=ClusterStrategy):
         """
         Main SyncObj class, you should inherit your own class from it.
 
@@ -117,6 +118,13 @@ class SyncObj(object):
             self.__conf = SyncObjConf()
         else:
             self.__conf = conf
+            
+        if clustering_strategy:
+            self.__cluster_polling = clustering_strategy.polling_interval
+            self.__cluster_strategy = clustering_strategy
+        else:
+            self.__cluster_polling = 0
+            self.__cluster_strategy = None
 
         self.__conf.validate()
 
@@ -534,6 +542,14 @@ class SyncObj(object):
         self._onTick(timeToWait)
 
     def _onTick(self, timeToWait=0.0):
+        
+        if self.__cluster_strategy:
+            nodes = self.__cluster_strategy.get_nodes()
+            nodes = {self.__nodeClass(node) for node in nodes if node not in self.__otherNodes}
+            for node in nodes:
+                self._addNodeToCluster(node)
+            
+                
         if not self.__transport.ready:
             try:
                 self.__transport.tryGetReady()
