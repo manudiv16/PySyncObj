@@ -24,6 +24,30 @@ class ClusterStrategy(ABC):
 
 
 @dataclass
+class DnsPollingStrategy(ClusterStrategy):
+    domain: str
+    port: int
+    poll_interval: int
+
+    def __get_local_ip(self):
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        logger.debug(f"Local IP: {local_ip}")
+        return local_ip
+
+    def get_nodes(self) -> list[str]:
+        try:
+            local_ip = self.__get_local_ip()
+            _, _, ips = socket.gethostbyname_ex(self.domain)
+            return {f"{ip}:{self.port}" for ip in ips if ip != local_ip}
+        except Exception:
+            return {}
+
+    def polling_interval(self):
+        return self.poll_interval
+
+
+@dataclass
 class FileClusterStrategy(ClusterStrategy):
     filename: str
     poll_interval: int
@@ -107,7 +131,7 @@ class NetworkScanner(ClusterStrategy):
     def __communicate_with_devices(self, devices):
         responses = {}
         for ip in devices:
-            if ip == self.local_ip:  # Evita que el nodo se comunique consigo mismo
+            if ip == self.local_ip:
                 continue
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -153,18 +177,27 @@ class NetworkScanner(ClusterStrategy):
 def main(
     port,
     application_port,
+    application_domain,
 ):
     scanner = NetworkScanner(port=port, application_port=application_port)
+    dns_strategy = DnsPollingStrategy(domain=application_domain, poll_interval=1)
     nodes = []
     import time
 
     for _ in range(10):
         time.sleep(scanner.polling_interval)
         nodes = scanner.get_nodes()
+        domain_nodes = dns_strategy.get_nodes()
         logger.debug(f"Nodes: {nodes}")
+        logger.debug(f"Domain Nodes: {domain_nodes}")
 
 
 if __name__ == "__main__":
     port_enviroment = os.environ.get("PORT", 45892)
     application_port = os.environ.get("APPLICATION_PORT", 8080)
-    main(port=port_enviroment, application_port=application_port)
+    application_domain = os.environ.get("APPLICATION_DOMAIN", "pysyncobj")
+    main(
+        port=port_enviroment,
+        application_port=application_port,
+        application_domain=application_domain,
+    )

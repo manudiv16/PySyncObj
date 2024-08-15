@@ -1,34 +1,36 @@
 version: '3'
 services:
-  node1:
+  pysyncobj:
     build: .
     environment:
       - port=45892
       - APPLICATION_PORT=458
-    ports:
-      - "45892:45892"
+    # ports:
+    #   - "45892:45892"
+    deploy:
+      replicas: 3
     networks:
       - net
 
-  node2:
-    build: .
-    environment:
-      - port=45892
-      - APPLICATION_PORT=458
-    ports:
-      - "45893:45892"
-    networks:
-      - net
+  # node2:
+  #   build: .
+  #   environment:
+  #     - port=45892
+  #     - APPLICATION_PORT=458
+  #   ports:
+  #     - "45893:45892"
+  #   networks:
+  #     - net
 
-  node3:
-    build: .
-    environment:
-      - port=45892
-      - APPLICATION_PORT=458
-    ports:
-      - "45894:45892"
-    networks:
-      - net
+  # node3:
+  #   build: .
+  #   environment:
+  #     - port=45892
+  #     - APPLICATION_PORT=458
+  #   ports:
+  #     - "45894:45892"
+  #   networks:
+  #     - net
 
 networks:
   net:
