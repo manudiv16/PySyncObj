@@ -15,16 +15,38 @@ from functools import partial
 import functools
 import struct
 import logging
-from pysyncobj import SyncObj, SyncObjConf, replicated, FAIL_REASON, _COMMAND_TYPE, \
-    createJournal, HAS_CRYPTO, replicated_sync, SyncObjException, SyncObjConsumer, _RAFT_STATE
+from pysyncobj import (
+    SyncObj,
+    SyncObjConf,
+    replicated,
+    FAIL_REASON,
+    _COMMAND_TYPE,
+    createJournal,
+    HAS_CRYPTO,
+    replicated_sync,
+    SyncObjException,
+    SyncObjConsumer,
+    _RAFT_STATE,
+)
 from pysyncobj.syncobj_admin import executeAdminCommand
-from pysyncobj.batteries import ReplCounter, ReplList, ReplDict, ReplSet, ReplLockManager, ReplQueue, ReplPriorityQueue
+from pysyncobj.batteries import (
+    ReplCounter,
+    ReplList,
+    ReplDict,
+    ReplSet,
+    ReplLockManager,
+    ReplQueue,
+    ReplPriorityQueue,
+)
 from pysyncobj.node import TCPNode
 from collections import defaultdict
 
-logging.basicConfig(format=u'[%(asctime)s %(filename)s:%(lineno)d %(levelname)s]  %(message)s', level=logging.DEBUG)
+logging.basicConfig(
+    format="[%(asctime)s %(filename)s:%(lineno)d %(levelname)s]  %(message)s",
+    level=logging.DEBUG,
+)
 
-_bchr = functools.partial(struct.pack, 'B')
+_bchr = functools.partial(struct.pack, "B")
 
 
 class TEST_TYPE:
@@ -40,18 +62,22 @@ class TEST_TYPE:
 
 class TestObj(SyncObj):
 
-    def __init__(self, selfNodeAddr, otherNodeAddrs,
-                 testType=TEST_TYPE.DEFAULT,
-                 compactionMinEntries=0,
-                 dumpFile=None,
-                 journalFile=None,
-                 password=None,
-                 dynamicMembershipChange=False,
-                 useFork=True,
-                 testBindAddr=False,
-                 consumers=None,
-                 onStateChanged=None,
-                 leaderFallbackTimeout=None):
+    def __init__(
+        self,
+        selfNodeAddr,
+        otherNodeAddrs,
+        testType=TEST_TYPE.DEFAULT,
+        compactionMinEntries=0,
+        dumpFile=None,
+        journalFile=None,
+        password=None,
+        dynamicMembershipChange=False,
+        useFork=True,
+        testBindAddr=False,
+        consumers=None,
+        onStateChanged=None,
+        leaderFallbackTimeout=None,
+    ):
 
         cfg = SyncObjConf(autoTick=False, appendEntriesUseBatch=False)
         cfg.appendEntriesPeriod = 0.1
@@ -109,7 +135,7 @@ class TestObj(SyncObj):
 
         if testType == TEST_TYPE.AUTO_TICK_1:
             cfg.autoTick = True
-            cfg.pollerType = 'select'
+            cfg.pollerType = "select"
 
         if testType == TEST_TYPE.WAIT_BIND:
             cfg.maxBindRetries = 1
@@ -138,11 +164,11 @@ class TestObj(SyncObj):
 
     @replicated
     def testMethod(self):
-        self.__data['testKey'] = 'valueVer1'
+        self.__data["testKey"] = "valueVer1"
 
     @replicated(ver=1)
     def testMethod(self):
-        self.__data['testKey'] = 'valueVer2'
+        self.__data["testKey"] = "valueVer2"
 
     def getCounter(self):
         return self.__counter
@@ -151,7 +177,7 @@ class TestObj(SyncObj):
         return self.__data.get(key, None)
 
     def dumpKeys(self):
-        print('keys:', sorted(self.__data.keys()))
+        print("keys:", sorted(self.__data.keys()))
 
 
 def singleTickFunc(o, timeToTick, interval, stopFunc):
@@ -168,15 +194,21 @@ def utilityTickFunc(args, currRes, key):
     currRes[key] = executeAdminCommand(args)
 
 
-def doSyncObjAdminTicks(objects, arguments, timeToTick, currRes, interval=0.05, stopFunc=None):
+def doSyncObjAdminTicks(
+    objects, arguments, timeToTick, currRes, interval=0.05, stopFunc=None
+):
     objThreads = []
     utilityThreads = []
     for o in objects:
-        t1 = threading.Thread(target=singleTickFunc, args=(o, timeToTick, interval, stopFunc))
+        t1 = threading.Thread(
+            target=singleTickFunc, args=(o, timeToTick, interval, stopFunc)
+        )
         t1.start()
         objThreads.append(t1)
         if arguments.get(o) is not None:
-            t2 = threading.Thread(target=utilityTickFunc, args=(arguments[o], currRes, o))
+            t2 = threading.Thread(
+                target=utilityTickFunc, args=(arguments[o], currRes, o)
+            )
             t2.start()
             utilityThreads.append(t2)
     for t in objThreads:
@@ -188,7 +220,9 @@ def doSyncObjAdminTicks(objects, arguments, timeToTick, currRes, interval=0.05, 
 def doTicks(objects, timeToTick, interval=0.05, stopFunc=None):
     threads = []
     for o in objects:
-        t = threading.Thread(target=singleTickFunc, args=(o, timeToTick, interval, stopFunc))
+        t = threading.Thread(
+            target=singleTickFunc, args=(o, timeToTick, interval, stopFunc)
+        )
         t.start()
         threads.append(t)
     for t in threads:
@@ -211,10 +245,10 @@ def getNextAddr(ipv6=False, isLocalhost=False):
     global _g_nextAddress
     _g_nextAddress += 1
     if ipv6:
-        return '::1:%d' % _g_nextAddress
+        return "::1:%d" % _g_nextAddress
     if isLocalhost:
-        return 'localhost:%d' % _g_nextAddress
-    return '127.0.0.1:%d' % _g_nextAddress
+        return "localhost:%d" % _g_nextAddress
+    return "127.0.0.1:%d" % _g_nextAddress
 
 
 _g_nextDumpFile = 1
@@ -223,14 +257,14 @@ _g_nextJournalFile = 1
 
 def getNextDumpFile():
     global _g_nextDumpFile
-    fname = 'dump%d.bin' % _g_nextDumpFile
+    fname = "dump%d.bin" % _g_nextDumpFile
     _g_nextDumpFile += 1
     return fname
 
 
 def getNextJournalFile():
     global _g_nextJournalFile
-    fname = 'journal%d.bin' % _g_nextJournalFile
+    fname = "journal%d.bin" % _g_nextJournalFile
     _g_nextJournalFile += 1
     return fname
 
@@ -262,7 +296,9 @@ def test_syncTwoObjects():
     o1.addValue(150)
     o2.addValue(200)
 
-    doTicks(objs, 10.0, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350)
+    doTicks(
+        objs, 10.0, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350
+    )
 
     assert o1._isReady()
     assert o2._isReady()
@@ -303,10 +339,14 @@ def test_hasQuorum():
 def test_singleObject():
     random.seed(42)
 
-    a = [getNextAddr(), ]
+    a = [
+        getNextAddr(),
+    ]
 
     o1 = TestObj(a[0], [])
-    objs = [o1, ]
+    objs = [
+        o1,
+    ]
 
     assert not o1._isReady()
 
@@ -336,16 +376,33 @@ def test_syncThreeObjectsLeaderFail():
 
     states = defaultdict(list)
 
-    o1 = TestObj(a[0], [a[1], a[2]], testBindAddr=True, onStateChanged=lambda old, new: states[a[0]].append(new))
-    o2 = TestObj(a[1], [a[2], a[0]], testBindAddr=True, onStateChanged=lambda old, new: states[a[1]].append(new))
-    o3 = TestObj(a[2], [a[0], a[1]], testBindAddr=True, onStateChanged=lambda old, new: states[a[2]].append(new))
+    o1 = TestObj(
+        a[0],
+        [a[1], a[2]],
+        testBindAddr=True,
+        onStateChanged=lambda old, new: states[a[0]].append(new),
+    )
+    o2 = TestObj(
+        a[1],
+        [a[2], a[0]],
+        testBindAddr=True,
+        onStateChanged=lambda old, new: states[a[1]].append(new),
+    )
+    o3 = TestObj(
+        a[2],
+        [a[0], a[1]],
+        testBindAddr=True,
+        onStateChanged=lambda old, new: states[a[2]].append(new),
+    )
     objs = [o1, o2, o3]
 
     assert not o1._isReady()
     assert not o2._isReady()
     assert not o3._isReady()
 
-    doTicks(objs, 10.0, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady())
+    doTicks(
+        objs, 10.0, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady()
+    )
 
     assert o1._isReady()
     assert o2._isReady()
@@ -370,10 +427,14 @@ def test_syncThreeObjectsLeaderFail():
 
     assert len(newObjs) == 2
 
-    doTicks(newObjs, 10.0, stopFunc=lambda: newObjs[0]._getLeader() != prevLeader and \
-                                            newObjs[0]._getLeader() is not None and \
-                                            newObjs[0]._getLeader().address in a and \
-                                            newObjs[0]._getLeader() == newObjs[1]._getLeader())
+    doTicks(
+        newObjs,
+        10.0,
+        stopFunc=lambda: newObjs[0]._getLeader() != prevLeader
+        and newObjs[0]._getLeader() is not None
+        and newObjs[0]._getLeader().address in a
+        and newObjs[0]._getLeader() == newObjs[1]._getLeader(),
+    )
 
     assert newObjs[0]._getLeader() != prevLeader
     assert newObjs[0]._getLeader().address in a
@@ -387,7 +448,11 @@ def test_syncThreeObjectsLeaderFail():
 
     assert newObjs[0].getCounter() == 400
 
-    doTicks(objs, 10.0, stopFunc=lambda: sum([int(o.getCounter() == 400) for o in objs]) == len(objs))
+    doTicks(
+        objs,
+        10.0,
+        stopFunc=lambda: sum([int(o.getCounter() == 400) for o in objs]) == len(objs),
+    )
 
     for o in objs:
         assert o.getCounter() == 400
@@ -411,7 +476,9 @@ def test_manyActionsLogCompaction():
     assert not o2._isReady()
     assert not o3._isReady()
 
-    doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady())
+    doTicks(
+        objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady()
+    )
 
     assert o1._isReady()
     assert o2._isReady()
@@ -425,13 +492,15 @@ def test_manyActionsLogCompaction():
         o1.addValue(1)
         o2.addValue(1)
 
-    doTicks(objs, 10, stopFunc=lambda:
-        o1.getCounter() == 1000 and
-        o2.getCounter() == 1000 and
-        o3.getCounter() == 1000 and
-        o1._getRaftLogSize() <= 100 and
-        o2._getRaftLogSize() <= 100 and
-        o3._getRaftLogSize() <= 100
+    doTicks(
+        objs,
+        10,
+        stopFunc=lambda: o1.getCounter() == 1000
+        and o2.getCounter() == 1000
+        and o3.getCounter() == 1000
+        and o1._getRaftLogSize() <= 100
+        and o2._getRaftLogSize() <= 100
+        and o3._getRaftLogSize() <= 100,
     )
 
     assert o1.getCounter() == 1000
@@ -449,12 +518,14 @@ def test_manyActionsLogCompaction():
         o1.addValue(1)
         o2.addValue(1)
 
-    doTicks(newObjs, 10, stopFunc=lambda:
-        o1.getCounter() == 2000 and
-        o2.getCounter() == 2000 and
-        o1._getRaftLogSize() <= 100 and
-        o2._getRaftLogSize() <= 100 and
-        o3._getRaftLogSize() <= 100
+    doTicks(
+        newObjs,
+        10,
+        stopFunc=lambda: o1.getCounter() == 2000
+        and o2.getCounter() == 2000
+        and o1._getRaftLogSize() <= 100
+        and o2._getRaftLogSize() <= 100
+        and o3._getRaftLogSize() <= 100,
     )
 
     assert o1.getCounter() == 2000
@@ -477,7 +548,7 @@ def test_manyActionsLogCompaction():
 def onAddValue(res, err, info):
     assert res == 3
     assert err == FAIL_REASON.SUCCESS
-    info['callback'] = True
+    info["callback"] = True
 
 
 def test_checkCallbacksSimple():
@@ -494,7 +565,9 @@ def test_checkCallbacksSimple():
     assert not o2._isReady()
     assert not o3._isReady()
 
-    doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady())
+    doTicks(
+        objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady()
+    )
 
     assert o1._isReady()
     assert o2._isReady()
@@ -504,15 +577,17 @@ def test_checkCallbacksSimple():
     assert o1._getLeader() == o2._getLeader()
     assert o1._getLeader() == o3._getLeader()
 
-    callbackInfo = {
-        'callback': False
-    }
+    callbackInfo = {"callback": False}
     o1.addValue(3, callback=partial(onAddValue, info=callbackInfo))
 
-    doTicks(objs, 10, stopFunc=lambda: o2.getCounter() == 3 and callbackInfo['callback'] == True)
+    doTicks(
+        objs,
+        10,
+        stopFunc=lambda: o2.getCounter() == 3 and callbackInfo["callback"] == True,
+    )
 
     assert o2.getCounter() == 3
-    assert callbackInfo['callback'] == True
+    assert callbackInfo["callback"] == True
 
     o1._destroy()
     o2._destroy()
@@ -520,7 +595,7 @@ def test_checkCallbacksSimple():
 
 
 def removeFiles(files):
-    for f in (files):
+    for f in files:
         if os.path.isfile(f):
             for i in xrange(0, 15):
                 try:
@@ -541,8 +616,12 @@ def checkDumpToFile(useFork):
 
     a = [getNextAddr(), getNextAddr()]
 
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.COMPACTION_2, dumpFile=dumpFiles[0], useFork=useFork)
-    o2 = TestObj(a[1], [a[0]], TEST_TYPE.COMPACTION_2, dumpFile=dumpFiles[1], useFork=useFork)
+    o1 = TestObj(
+        a[0], [a[1]], TEST_TYPE.COMPACTION_2, dumpFile=dumpFiles[0], useFork=useFork
+    )
+    o2 = TestObj(
+        a[1], [a[0]], TEST_TYPE.COMPACTION_2, dumpFile=dumpFiles[1], useFork=useFork
+    )
     objs = [o1, o2]
     doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady())
 
@@ -552,7 +631,9 @@ def checkDumpToFile(useFork):
     o1.addValue(150)
     o2.addValue(200)
 
-    doTicks(objs, 10, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350)
+    doTicks(
+        objs, 10, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350
+    )
 
     assert o1.getCounter() == 350
     assert o2.getCounter() == 350
@@ -566,8 +647,12 @@ def checkDumpToFile(useFork):
     o2._destroy()
 
     a = [getNextAddr(), getNextAddr()]
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.COMPACTION_2, dumpFile=dumpFiles[0], useFork=useFork)
-    o2 = TestObj(a[1], [a[0]], TEST_TYPE.COMPACTION_2, dumpFile=dumpFiles[1], useFork=useFork)
+    o1 = TestObj(
+        a[0], [a[1]], TEST_TYPE.COMPACTION_2, dumpFile=dumpFiles[0], useFork=useFork
+    )
+    o2 = TestObj(
+        a[1], [a[0]], TEST_TYPE.COMPACTION_2, dumpFile=dumpFiles[1], useFork=useFork
+    )
     objs = [o1, o2]
     doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady())
     assert o1._isReady()
@@ -586,13 +671,13 @@ def checkDumpToFile(useFork):
 
 
 def test_checkDumpToFile():
-    if hasattr(os, 'fork'):
+    if hasattr(os, "fork"):
         checkDumpToFile(True)
     checkDumpToFile(False)
 
 
 def getRandStr():
-    return '%0100000x' % random.randrange(16 ** 100000)
+    return "%0100000x" % random.randrange(16**100000)
 
 
 def test_checkBigStorage():
@@ -615,13 +700,17 @@ def test_checkBigStorage():
     testRandStr = getRandStr()
     for i in xrange(0, 500):
         o1.addKeyValue(i, getRandStr())
-    o1.addKeyValue('test', testRandStr)
+    o1.addKeyValue("test", testRandStr)
 
     # Wait for replication.
-    doTicks(objs, 60, stopFunc=lambda: o1.getValue('test') == testRandStr and \
-                                       o2.getValue('test') == testRandStr)
+    doTicks(
+        objs,
+        60,
+        stopFunc=lambda: o1.getValue("test") == testRandStr
+        and o2.getValue("test") == testRandStr,
+    )
 
-    assert o1.getValue('test') == testRandStr
+    assert o1.getValue("test") == testRandStr
 
     o1._forceLogCompaction()
     o2._forceLogCompaction()
@@ -642,15 +731,19 @@ def test_checkBigStorage():
     assert o1._getLeader().address in a
     assert o1._getLeader() == o2._getLeader()
 
-    assert o1.getValue('test') == testRandStr
-    assert o2.getValue('test') == testRandStr
+    assert o1.getValue("test") == testRandStr
+    assert o2.getValue("test") == testRandStr
 
     o1._destroy()
     o2._destroy()
 
     removeFiles(dumpFiles)
 
-@pytest.mark.skipif(sys.platform == "win32" or platform.python_implementation() != 'CPython', reason="does not run on windows or pypy")
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or platform.python_implementation() != "CPython",
+    reason="does not run on windows or pypy",
+)
 def test_encryptionCorrectPassword():
     assert HAS_CRYPTO
 
@@ -658,8 +751,8 @@ def test_encryptionCorrectPassword():
 
     a = [getNextAddr(), getNextAddr()]
 
-    o1 = TestObj(a[0], [a[1]], password='asd')
-    o2 = TestObj(a[1], [a[0]], password='asd')
+    o1 = TestObj(a[0], [a[1]], password="asd")
+    o2 = TestObj(a[1], [a[0]], password="asd")
     objs = [o1, o2]
     doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady())
 
@@ -669,19 +762,25 @@ def test_encryptionCorrectPassword():
     o1.addValue(150)
     o2.addValue(200)
 
-    doTicks(objs, 10, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350)
+    doTicks(
+        objs, 10, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350
+    )
 
     assert o1.getCounter() == 350
     assert o2.getCounter() == 350
 
-    for conn in list(o1._SyncObj__transport._connections.values()) + list(o2._SyncObj__transport._connections.values()):
+    for conn in list(o1._SyncObj__transport._connections.values()) + list(
+        o2._SyncObj__transport._connections.values()
+    ):
         conn.disconnect()
 
     doTicks(objs, 10)
 
     o1.addValue(100)
 
-    doTicks(objs, 10, stopFunc=lambda: o1.getCounter() == 450 and o2.getCounter() == 450)
+    doTicks(
+        objs, 10, stopFunc=lambda: o1.getCounter() == 450 and o2.getCounter() == 450
+    )
 
     assert o1.getCounter() == 450
     assert o2.getCounter() == 450
@@ -689,7 +788,10 @@ def test_encryptionCorrectPassword():
     o1._destroy()
     o2._destroy()
 
-@pytest.mark.skipif(platform.python_implementation() != 'CPython', reason="does not have crypto on pypy")
+
+@pytest.mark.skipif(
+    platform.python_implementation() != "CPython", reason="does not have crypto on pypy"
+)
 def test_encryptionWrongPassword():
     assert HAS_CRYPTO
 
@@ -697,9 +799,9 @@ def test_encryptionWrongPassword():
 
     a = [getNextAddr(), getNextAddr(), getNextAddr()]
 
-    o1 = TestObj(a[0], [a[1], a[2]], password='asd')
-    o2 = TestObj(a[1], [a[2], a[0]], password='asd')
-    o3 = TestObj(a[2], [a[0], a[1]], password='qwe')
+    o1 = TestObj(a[0], [a[1], a[2]], password="asd")
+    o2 = TestObj(a[1], [a[2], a[0]], password="asd")
+    o3 = TestObj(a[2], [a[0], a[1]], password="qwe")
     objs = [o1, o2, o3]
 
     doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady())
@@ -756,7 +858,7 @@ def _checkSameLeader2(objs):
 def test_randomTest1():
     journalFiles = [getNextJournalFile(), getNextJournalFile(), getNextJournalFile()]
     removeFiles(journalFiles)
-    removeFiles([e + '.meta' for e in journalFiles])
+    removeFiles([e + ".meta" for e in journalFiles])
 
     random.seed(12)
 
@@ -797,7 +899,9 @@ def test_randomTest1():
             random.choice(objs).addValue(random.randint(0, 10))
 
     if not (o1.getCounter() == o2.getCounter() == o3.getCounter()):
-        print(time.time(), 'counters:', o1.getCounter(), o2.getCounter(), o3.getCounter())
+        print(
+            time.time(), "counters:", o1.getCounter(), o2.getCounter(), o3.getCounter()
+        )
 
         # disable send delays to make test finish faster
         for obj in objs:
@@ -813,9 +917,14 @@ def test_randomTest1():
         o1._printStatus()
         o2._printStatus()
         o3._printStatus()
-        print('Logs same:', o1._SyncObj__raftLog == o2._SyncObj__raftLog == o3._SyncObj__raftLog)
-        print(time.time(), 'counters:', o1.getCounter(), o2.getCounter(), o3.getCounter())
-        raise AssertionError('Values not equal')
+        print(
+            "Logs same:",
+            o1._SyncObj__raftLog == o2._SyncObj__raftLog == o3._SyncObj__raftLog,
+        )
+        print(
+            time.time(), "counters:", o1.getCounter(), o2.getCounter(), o3.getCounter()
+        )
+        raise AssertionError("Values not equal")
 
     counter = o1.getCounter()
     o1._destroy()
@@ -841,12 +950,22 @@ def test_randomTest1():
         o1._printStatus()
         o2._printStatus()
         o3._printStatus()
-        print('Logs same:', o1._SyncObj__raftLog == o2._SyncObj__raftLog == o3._SyncObj__raftLog)
-        print(time.time(), 'counters:', o1.getCounter(), o2.getCounter(), o3.getCounter(), counter)
-        raise AssertionError('Values not equal')
+        print(
+            "Logs same:",
+            o1._SyncObj__raftLog == o2._SyncObj__raftLog == o3._SyncObj__raftLog,
+        )
+        print(
+            time.time(),
+            "counters:",
+            o1.getCounter(),
+            o2.getCounter(),
+            o3.getCounter(),
+            counter,
+        )
+        raise AssertionError("Values not equal")
 
     removeFiles(journalFiles)
-    removeFiles([e + '.meta' for e in journalFiles])
+    removeFiles([e + ".meta" for e in journalFiles])
 
 
 # Ensure that raftLog after serialization is the same as in serialized data
@@ -915,7 +1034,9 @@ def test_logCompactionRegressionTest2():
 
     o3 = TestObj(a[2], [a[0], a[1]], dumpFile=dumpFiles[2])
     objs = [o1, o2, o3]
-    doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady())
+    doTicks(
+        objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady()
+    )
 
     assert o1._isReady()
     assert o2._isReady()
@@ -931,7 +1052,8 @@ def test_logCompactionRegressionTest2():
 def __checkParnerNodeExists(obj, nodeAddr, shouldExist=True):
     nodeAddrSet = {node.address for node in obj._SyncObj__otherNodes}
     return (
-                   nodeAddr in nodeAddrSet) == shouldExist  # either nodeAddr is in nodeAddrSet and shouldExist is True, or nodeAddr isn't in the set and shouldExist is False
+        nodeAddr in nodeAddrSet
+    ) == shouldExist  # either nodeAddr is in nodeAddrSet and shouldExist is True, or nodeAddr isn't in the set and shouldExist is False
 
 
 def test_doChangeClusterUT1():
@@ -941,66 +1063,92 @@ def test_doChangeClusterUT1():
     baseAddr = getNextAddr()
     oterAddr = getNextAddr()
 
-    o1 = TestObj(baseAddr, ['localhost:1235', oterAddr], dumpFile=dumpFiles[0], dynamicMembershipChange=True)
-    __checkParnerNodeExists(o1, 'localhost:1238', False)
-    __checkParnerNodeExists(o1, 'localhost:1239', False)
-    __checkParnerNodeExists(o1, 'localhost:1235', True)
+    o1 = TestObj(
+        baseAddr,
+        ["localhost:1235", oterAddr],
+        dumpFile=dumpFiles[0],
+        dynamicMembershipChange=True,
+    )
+    __checkParnerNodeExists(o1, "localhost:1238", False)
+    __checkParnerNodeExists(o1, "localhost:1239", False)
+    __checkParnerNodeExists(o1, "localhost:1235", True)
 
     noop = _bchr(_COMMAND_TYPE.NO_OP)
     member = _bchr(_COMMAND_TYPE.MEMBERSHIP)
 
     # Check regular configuration change - adding
-    o1._SyncObj__onMessageReceived(TCPNode('localhost:12345'), {
-        'type': 'append_entries',
-        'term': 1,
-        'prevLogIdx': 1,
-        'prevLogTerm': 0,
-        'commit_index': 2,
-        'entries': [(noop, 2, 1), (noop, 3, 1), (member + pickle.dumps(['add', 'localhost:1238']), 4, 1)]
-    })
-    __checkParnerNodeExists(o1, 'localhost:1238', True)
-    __checkParnerNodeExists(o1, 'localhost:1239', False)
+    o1._SyncObj__onMessageReceived(
+        TCPNode("localhost:12345"),
+        {
+            "type": "append_entries",
+            "term": 1,
+            "prevLogIdx": 1,
+            "prevLogTerm": 0,
+            "commit_index": 2,
+            "entries": [
+                (noop, 2, 1),
+                (noop, 3, 1),
+                (member + pickle.dumps(["add", "localhost:1238"]), 4, 1),
+            ],
+        },
+    )
+    __checkParnerNodeExists(o1, "localhost:1238", True)
+    __checkParnerNodeExists(o1, "localhost:1239", False)
 
     # Check rollback adding
-    o1._SyncObj__onMessageReceived(TCPNode('localhost:1236'), {
-        'type': 'append_entries',
-        'term': 2,
-        'prevLogIdx': 2,
-        'prevLogTerm': 1,
-        'commit_index': 3,
-        'entries': [(noop, 3, 2), (member + pickle.dumps(['add', 'localhost:1239']), 4, 2)]
-    })
-    __checkParnerNodeExists(o1, 'localhost:1238', False)
-    __checkParnerNodeExists(o1, 'localhost:1239', True)
+    o1._SyncObj__onMessageReceived(
+        TCPNode("localhost:1236"),
+        {
+            "type": "append_entries",
+            "term": 2,
+            "prevLogIdx": 2,
+            "prevLogTerm": 1,
+            "commit_index": 3,
+            "entries": [
+                (noop, 3, 2),
+                (member + pickle.dumps(["add", "localhost:1239"]), 4, 2),
+            ],
+        },
+    )
+    __checkParnerNodeExists(o1, "localhost:1238", False)
+    __checkParnerNodeExists(o1, "localhost:1239", True)
     __checkParnerNodeExists(o1, oterAddr, True)
 
     # Check regular configuration change - removing
-    o1._SyncObj__onMessageReceived(TCPNode('localhost:1236'), {
-        'type': 'append_entries',
-        'term': 2,
-        'prevLogIdx': 4,
-        'prevLogTerm': 2,
-        'commit_index': 4,
-        'entries': [(member + pickle.dumps(['rem', 'localhost:1235']), 5, 2)]
-    })
+    o1._SyncObj__onMessageReceived(
+        TCPNode("localhost:1236"),
+        {
+            "type": "append_entries",
+            "term": 2,
+            "prevLogIdx": 4,
+            "prevLogTerm": 2,
+            "commit_index": 4,
+            "entries": [(member + pickle.dumps(["rem", "localhost:1235"]), 5, 2)],
+        },
+    )
 
-    __checkParnerNodeExists(o1, 'localhost:1238', False)
-    __checkParnerNodeExists(o1, 'localhost:1239', True)
-    __checkParnerNodeExists(o1, 'localhost:1235', False)
+    __checkParnerNodeExists(o1, "localhost:1238", False)
+    __checkParnerNodeExists(o1, "localhost:1239", True)
+    __checkParnerNodeExists(o1, "localhost:1235", False)
 
     # Check log compaction
     o1._forceLogCompaction()
     doTicks([o1], 0.5)
     o1._destroy()
 
-    o2 = TestObj(oterAddr, [baseAddr, 'localhost:1236'], dumpFile='dump1.bin', dynamicMembershipChange=True)
+    o2 = TestObj(
+        oterAddr,
+        [baseAddr, "localhost:1236"],
+        dumpFile="dump1.bin",
+        dynamicMembershipChange=True,
+    )
     doTicks([o2], 0.5)
 
     __checkParnerNodeExists(o2, oterAddr, False)
     __checkParnerNodeExists(o2, baseAddr, True)
-    __checkParnerNodeExists(o2, 'localhost:1238', False)
-    __checkParnerNodeExists(o2, 'localhost:1239', True)
-    __checkParnerNodeExists(o2, 'localhost:1235', False)
+    __checkParnerNodeExists(o2, "localhost:1238", False)
+    __checkParnerNodeExists(o2, "localhost:1239", True)
+    __checkParnerNodeExists(o2, "localhost:1235", False)
     o2._destroy()
 
     removeFiles(dumpFiles)
@@ -1013,7 +1161,11 @@ def test_doChangeClusterUT2():
     o2 = TestObj(a[1], [a[2], a[0]], dynamicMembershipChange=True)
     o3 = TestObj(a[2], [a[0], a[1]], dynamicMembershipChange=True)
 
-    doTicks([o1, o2, o3], 10, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady())
+    doTicks(
+        [o1, o2, o3],
+        10,
+        stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady(),
+    )
 
     assert o1._isReady() == o2._isReady() == o3._isReady() == True
     o3.addValue(50)
@@ -1050,14 +1202,26 @@ def test_journalTest1():
     journalFiles = [getNextJournalFile(), getNextJournalFile()]
     removeFiles(dumpFiles)
     removeFiles(journalFiles)
-    removeFiles([e + '.meta' for e in journalFiles])
+    removeFiles([e + ".meta" for e in journalFiles])
 
     random.seed(42)
 
     a = [getNextAddr(), getNextAddr()]
 
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[0], journalFile=journalFiles[0])
-    o2 = TestObj(a[1], [a[0]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[1], journalFile=journalFiles[1])
+    o1 = TestObj(
+        a[0],
+        [a[1]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[0],
+        journalFile=journalFiles[0],
+    )
+    o2 = TestObj(
+        a[1],
+        [a[0]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[1],
+        journalFile=journalFiles[1],
+    )
     objs = [o1, o2]
     doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady())
 
@@ -1067,7 +1231,9 @@ def test_journalTest1():
     o1.addValue(150)
     o2.addValue(200)
 
-    doTicks(objs, 10, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350)
+    doTicks(
+        objs, 10, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350
+    )
 
     assert o1.getCounter() == 350
     assert o2.getCounter() == 350
@@ -1076,11 +1242,29 @@ def test_journalTest1():
     o2._destroy()
 
     a = [getNextAddr(), getNextAddr()]
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[0], journalFile=journalFiles[0])
-    o2 = TestObj(a[1], [a[0]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[1], journalFile=journalFiles[1])
+    o1 = TestObj(
+        a[0],
+        [a[1]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[0],
+        journalFile=journalFiles[0],
+    )
+    o2 = TestObj(
+        a[1],
+        [a[0]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[1],
+        journalFile=journalFiles[1],
+    )
     objs = [o1, o2]
-    doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady() and \
-                                       o1.getCounter() == 350 and o2.getCounter() == 350)
+    doTicks(
+        objs,
+        10,
+        stopFunc=lambda: o1._isReady()
+        and o2._isReady()
+        and o1.getCounter() == 350
+        and o2.getCounter() == 350,
+    )
     assert o1._isReady()
     assert o2._isReady()
 
@@ -1093,7 +1277,9 @@ def test_journalTest1():
     o1.addValue(100)
     o2.addValue(150)
 
-    doTicks(objs, 10, stopFunc=lambda: o1.getCounter() == 600 and o2.getCounter() == 600)
+    doTicks(
+        objs, 10, stopFunc=lambda: o1.getCounter() == 600 and o2.getCounter() == 600
+    )
 
     assert o1.getCounter() == 600
     assert o2.getCounter() == 600
@@ -1106,7 +1292,9 @@ def test_journalTest1():
     o1.addValue(150)
     o2.addValue(150)
 
-    doTicks(objs, 10, stopFunc=lambda: o1.getCounter() == 900 and o2.getCounter() == 900)
+    doTicks(
+        objs, 10, stopFunc=lambda: o1.getCounter() == 900 and o2.getCounter() == 900
+    )
 
     assert o1.getCounter() == 900
     assert o2.getCounter() == 900
@@ -1115,11 +1303,29 @@ def test_journalTest1():
     o2._destroy()
 
     a = [getNextAddr(), getNextAddr()]
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[0], journalFile=journalFiles[0])
-    o2 = TestObj(a[1], [a[0]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[1], journalFile=journalFiles[1])
+    o1 = TestObj(
+        a[0],
+        [a[1]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[0],
+        journalFile=journalFiles[0],
+    )
+    o2 = TestObj(
+        a[1],
+        [a[0]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[1],
+        journalFile=journalFiles[1],
+    )
     objs = [o1, o2]
-    doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady() and \
-                                       o1.getCounter() == 900 and o2.getCounter() == 900)
+    doTicks(
+        objs,
+        10,
+        stopFunc=lambda: o1._isReady()
+        and o2._isReady()
+        and o1.getCounter() == 900
+        and o2.getCounter() == 900,
+    )
     assert o1._isReady()
     assert o2._isReady()
 
@@ -1134,41 +1340,41 @@ def test_journalTest1():
 
     removeFiles(dumpFiles)
     removeFiles(journalFiles)
-    removeFiles([e + '.meta' for e in journalFiles])
+    removeFiles([e + ".meta" for e in journalFiles])
 
 
 def test_journalTest2():
     journalFiles = [getNextJournalFile()]
     removeFiles(journalFiles)
-    removeFiles([e + '.meta' for e in journalFiles])
+    removeFiles([e + ".meta" for e in journalFiles])
 
     removeFiles(journalFiles)
     journal = createJournal(journalFiles[0])
-    journal.add(b'cmd1', 1, 0)
-    journal.add(b'cmd2', 2, 0)
-    journal.add(b'cmd3', 3, 0)
+    journal.add(b"cmd1", 1, 0)
+    journal.add(b"cmd2", 2, 0)
+    journal.add(b"cmd3", 3, 0)
     journal._destroy()
 
     journal = createJournal(journalFiles[0])
     assert len(journal) == 3
-    assert journal[0] == (b'cmd1', 1, 0)
-    assert journal[-1] == (b'cmd3', 3, 0)
+    assert journal[0] == (b"cmd1", 1, 0)
+    assert journal[-1] == (b"cmd3", 3, 0)
     journal.deleteEntriesFrom(2)
     journal._destroy()
 
     journal = createJournal(journalFiles[0])
     assert len(journal) == 2
-    assert journal[0] == (b'cmd1', 1, 0)
-    assert journal[-1] == (b'cmd2', 2, 0)
+    assert journal[0] == (b"cmd1", 1, 0)
+    assert journal[-1] == (b"cmd2", 2, 0)
     journal.deleteEntriesTo(1)
     journal._destroy()
 
     journal = createJournal(journalFiles[0])
     assert len(journal) == 1
-    assert journal[0] == (b'cmd2', 2, 0)
+    assert journal[0] == (b"cmd2", 2, 0)
     journal._destroy()
     removeFiles(journalFiles)
-    removeFiles([e + '.meta' for e in journalFiles])
+    removeFiles([e + ".meta" for e in journalFiles])
 
 
 def test_applyJournalAfterRestart():
@@ -1176,14 +1382,26 @@ def test_applyJournalAfterRestart():
     journalFiles = [getNextJournalFile(), getNextJournalFile()]
     removeFiles(dumpFiles)
     removeFiles(journalFiles)
-    removeFiles([e + '.meta' for e in journalFiles])
+    removeFiles([e + ".meta" for e in journalFiles])
 
     random.seed(42)
 
     a = [getNextAddr(), getNextAddr()]
 
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[0], journalFile=journalFiles[0])
-    o2 = TestObj(a[1], [a[0]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[1], journalFile=journalFiles[1])
+    o1 = TestObj(
+        a[0],
+        [a[1]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[0],
+        journalFile=journalFiles[0],
+    )
+    o2 = TestObj(
+        a[1],
+        [a[0]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[1],
+        journalFile=journalFiles[1],
+    )
     objs = [o1, o2]
     doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady())
 
@@ -1193,7 +1411,9 @@ def test_applyJournalAfterRestart():
     o1.addValue(150)
     o2.addValue(200)
 
-    doTicks(objs, 10, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350)
+    doTicks(
+        objs, 10, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350
+    )
 
     assert o1.getCounter() == 350
     assert o2.getCounter() == 350
@@ -1204,7 +1424,13 @@ def test_applyJournalAfterRestart():
 
     removeFiles(dumpFiles)
 
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[0], journalFile=journalFiles[0])
+    o1 = TestObj(
+        a[0],
+        [a[1]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[0],
+        journalFile=journalFiles[0],
+    )
     objs = [o1]
     doTicks(objs, 10, o1.getCounter() == 350)
 
@@ -1212,7 +1438,7 @@ def test_applyJournalAfterRestart():
 
     removeFiles(dumpFiles)
     removeFiles(journalFiles)
-    removeFiles([e + '.meta' for e in journalFiles])
+    removeFiles([e + ".meta" for e in journalFiles])
 
 
 def test_autoTick1():
@@ -1262,8 +1488,20 @@ def test_largeCommands():
 
     a = [getNextAddr(), getNextAddr()]
 
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.LARGE_COMMAND, dumpFile=dumpFiles[0], leaderFallbackTimeout=60.0)
-    o2 = TestObj(a[1], [a[0]], TEST_TYPE.LARGE_COMMAND, dumpFile=dumpFiles[1], leaderFallbackTimeout=60.0)
+    o1 = TestObj(
+        a[0],
+        [a[1]],
+        TEST_TYPE.LARGE_COMMAND,
+        dumpFile=dumpFiles[0],
+        leaderFallbackTimeout=60.0,
+    )
+    o2 = TestObj(
+        a[1],
+        [a[0]],
+        TEST_TYPE.LARGE_COMMAND,
+        dumpFile=dumpFiles[1],
+        leaderFallbackTimeout=60.0,
+    )
     objs = [o1, o2]
     doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady())
 
@@ -1272,20 +1510,24 @@ def test_largeCommands():
 
     # Generate ~20Mb data.
     testRandStr = getRandStr()
-    bigStr = ''
+    bigStr = ""
     for i in xrange(0, 200):
         bigStr += getRandStr()
-    o1.addKeyValue('big', bigStr)
-    o1.addKeyValue('test', testRandStr)
+    o1.addKeyValue("big", bigStr)
+    o1.addKeyValue("test", testRandStr)
 
     # Wait for replication.
-    doTicks(objs, 60, stopFunc=lambda: o1.getValue('test') == testRandStr and \
-                                       o2.getValue('test') == testRandStr and \
-                                       o1.getValue('big') == bigStr and \
-                                       o2.getValue('big') == bigStr)
+    doTicks(
+        objs,
+        60,
+        stopFunc=lambda: o1.getValue("test") == testRandStr
+        and o2.getValue("test") == testRandStr
+        and o1.getValue("big") == bigStr
+        and o2.getValue("big") == bigStr,
+    )
 
-    assert o1.getValue('test') == testRandStr
-    assert o2.getValue('big') == bigStr
+    assert o1.getValue("test") == testRandStr
+    assert o2.getValue("big") == bigStr
 
     o1._forceLogCompaction()
     o2._forceLogCompaction()
@@ -1297,47 +1539,69 @@ def test_largeCommands():
     o2._destroy()
 
     a = [getNextAddr(), getNextAddr()]
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.LARGE_COMMAND, dumpFile=dumpFiles[0], leaderFallbackTimeout=60.0)
-    o2 = TestObj(a[1], [a[0]], TEST_TYPE.LARGE_COMMAND, dumpFile=dumpFiles[1], leaderFallbackTimeout=60.0)
+    o1 = TestObj(
+        a[0],
+        [a[1]],
+        TEST_TYPE.LARGE_COMMAND,
+        dumpFile=dumpFiles[0],
+        leaderFallbackTimeout=60.0,
+    )
+    o2 = TestObj(
+        a[1],
+        [a[0]],
+        TEST_TYPE.LARGE_COMMAND,
+        dumpFile=dumpFiles[1],
+        leaderFallbackTimeout=60.0,
+    )
     objs = [o1, o2]
     # Wait for disk load, election and replication
 
-    doTicks(objs, 60, stopFunc=lambda: o1.getValue('test') == testRandStr and \
-                                       o2.getValue('test') == testRandStr and \
-                                       o1.getValue('big') == bigStr and \
-                                       o2.getValue('big') == bigStr and \
-                                       o1._isReady() and o2._isReady())
+    doTicks(
+        objs,
+        60,
+        stopFunc=lambda: o1.getValue("test") == testRandStr
+        and o2.getValue("test") == testRandStr
+        and o1.getValue("big") == bigStr
+        and o2.getValue("big") == bigStr
+        and o1._isReady()
+        and o2._isReady(),
+    )
 
     assert o1._getLeader().address in a
     assert o1._getLeader() == o2._getLeader()
 
-    assert o1.getValue('test') == testRandStr
-    assert o2.getValue('big') == bigStr
-    assert o1.getValue('test') == testRandStr
-    assert o2.getValue('big') == bigStr
+    assert o1.getValue("test") == testRandStr
+    assert o2.getValue("big") == bigStr
+    assert o1.getValue("test") == testRandStr
+    assert o2.getValue("big") == bigStr
 
     o1._destroy()
     o2._destroy()
 
     removeFiles(dumpFiles)
 
-@pytest.mark.skipif(platform.python_implementation() != 'CPython', reason="does not have crypto on pypy")
+
+@pytest.mark.skipif(
+    platform.python_implementation() != "CPython", reason="does not have crypto on pypy"
+)
 def test_readOnlyNodes():
     random.seed(12)
 
     a = [getNextAddr(), getNextAddr(), getNextAddr()]
 
-    o1 = TestObj(a[0], [a[1], a[2]], password='123')
-    o2 = TestObj(a[1], [a[2], a[0]], password='123')
-    o3 = TestObj(a[2], [a[0], a[1]], password='123')
+    o1 = TestObj(a[0], [a[1], a[2]], password="123")
+    o2 = TestObj(a[1], [a[2], a[0]], password="123")
+    o3 = TestObj(a[2], [a[0], a[1]], password="123")
     objs = [o1, o2, o3]
 
-    b1 = TestObj(None, [a[0], a[1], a[2]], password='123')
-    b2 = TestObj(None, [a[0], a[1], a[2]], password='123')
+    b1 = TestObj(None, [a[0], a[1], a[2]], password="123")
+    b2 = TestObj(None, [a[0], a[1], a[2]], password="123")
 
     roObjs = [b1, b2]
 
-    doTicks(objs, 10.0, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady())
+    doTicks(
+        objs, 10.0, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady()
+    )
 
     assert o1._isReady()
     assert o2._isReady()
@@ -1348,7 +1612,11 @@ def test_readOnlyNodes():
 
     doTicks(objs, 10.0, stopFunc=lambda: o3.getCounter() == 350)
 
-    doTicks(objs + roObjs, 4.0, stopFunc=lambda: b1.getCounter() == 350 and b2.getCounter() == 350)
+    doTicks(
+        objs + roObjs,
+        4.0,
+        stopFunc=lambda: b1.getCounter() == 350 and b2.getCounter() == 350,
+    )
 
     assert b1.getCounter() == b2.getCounter() == 350
     assert o1._getLeader() == b1._getLeader() == o2._getLeader() == b2._getLeader()
@@ -1360,10 +1628,14 @@ def test_readOnlyNodes():
 
     assert len(newObjs) == 2
 
-    doTicks(newObjs + roObjs, 10.0, stopFunc=lambda: newObjs[0]._getLeader() != prevLeader and \
-                                                     newObjs[0]._getLeader() is not None and \
-                                                     newObjs[0]._getLeader().address in a and \
-                                                     newObjs[0]._getLeader() == newObjs[1]._getLeader())
+    doTicks(
+        newObjs + roObjs,
+        10.0,
+        stopFunc=lambda: newObjs[0]._getLeader() != prevLeader
+        and newObjs[0]._getLeader() is not None
+        and newObjs[0]._getLeader().address in a
+        and newObjs[0]._getLeader() == newObjs[1]._getLeader(),
+    )
 
     assert newObjs[0]._getLeader() != prevLeader
     assert newObjs[0]._getLeader().address in a
@@ -1371,7 +1643,11 @@ def test_readOnlyNodes():
 
     newObjs[1].addValue(50)
 
-    doTicks(newObjs + roObjs, 10.0, stopFunc=lambda: newObjs[0].getCounter() == 400 and b1.getCounter() == 400)
+    doTicks(
+        newObjs + roObjs,
+        10.0,
+        stopFunc=lambda: newObjs[0].getCounter() == 400 and b1.getCounter() == 400,
+    )
 
     o1._printStatus()
     o2._printStatus()
@@ -1382,8 +1658,12 @@ def test_readOnlyNodes():
     assert newObjs[0].getCounter() == 400
     assert b1.getCounter() == 400
 
-    doTicks(objs + roObjs, 10.0,
-            stopFunc=lambda: sum([int(o.getCounter() == 400) for o in objs + roObjs]) == len(objs + roObjs))
+    doTicks(
+        objs + roObjs,
+        10.0,
+        stopFunc=lambda: sum([int(o.getCounter() == 400) for o in objs + roObjs])
+        == len(objs + roObjs),
+    )
 
     for o in objs + roObjs:
         assert o.getCounter() == 400
@@ -1395,26 +1675,27 @@ def test_readOnlyNodes():
 
     b1.addValue(50, callback=onAdd)
 
-    doTicks(objs + roObjs, 5.0, stopFunc=lambda: o1.getCounter() == 450 and \
-                                                 b1.getCounter() == 450 and \
-                                                 b2.getCounter() == 450 and
-                                                 currRes.get(0) == FAIL_REASON.SUCCESS)
+    doTicks(
+        objs + roObjs,
+        5.0,
+        stopFunc=lambda: o1.getCounter() == 450
+        and b1.getCounter() == 450
+        and b2.getCounter() == 450
+        and currRes.get(0) == FAIL_REASON.SUCCESS,
+    )
     assert o1.getCounter() == 450
     assert b1.getCounter() == 450
     assert b2.getCounter() == 450
     assert currRes.get(0) == FAIL_REASON.SUCCESS
 
-
     # check that all objects have 2 readonly nodes
-    assert all(map(lambda o: o.getStatus()['readonly_nodes_count'] == 2, objs))
+    assert all(map(lambda o: o.getStatus()["readonly_nodes_count"] == 2, objs))
 
     # disconnect readonly node
     b1._destroy()
     doTicks(objs, 2.0)
 
-    assert all(map(lambda o: o.getStatus()['readonly_nodes_count'] == 1, objs))
-
-
+    assert all(map(lambda o: o.getStatus()["readonly_nodes_count"] == 1, objs))
 
     o1._destroy()
     o2._destroy()
@@ -1424,7 +1705,9 @@ def test_readOnlyNodes():
     b2._destroy()
 
 
-@pytest.mark.skipif(platform.python_implementation() != 'CPython', reason="does not have crypto on pypy")
+@pytest.mark.skipif(
+    platform.python_implementation() != "CPython", reason="does not have crypto on pypy"
+)
 def test_syncobjAdminStatus():
     assert HAS_CRYPTO
 
@@ -1432,8 +1715,8 @@ def test_syncobjAdminStatus():
 
     a = [getNextAddr(), getNextAddr()]
 
-    o1 = TestObj(a[0], [a[1]], password='123')
-    o2 = TestObj(a[1], [a[0]], password='123')
+    o1 = TestObj(a[0], [a[1]], password="123")
+    o2 = TestObj(a[1], [a[0]], password="123")
 
     assert not o1._isReady()
     assert not o2._isReady()
@@ -1446,22 +1729,26 @@ def test_syncobjAdminStatus():
     status1 = o1.getStatus()
     status2 = o2.getStatus()
 
-    assert 'version' in status1
-    assert 'log_len' in status2
+    assert "version" in status1
+    assert "log_len" in status2
 
     trueRes = {
-        o1: '\n'.join('%s: %s' % (k, v) for k, v in sorted(status1.items())),
-        o2: '\n'.join('%s: %s' % (k, v) for k, v in sorted(status2.items())),
+        o1: "\n".join("%s: %s" % (k, v) for k, v in sorted(status1.items())),
+        o2: "\n".join("%s: %s" % (k, v) for k, v in sorted(status2.items())),
     }
 
-    currRes = {
-    }
+    currRes = {}
     args = {
-        o1: ['-conn', a[0], '-pass', '123', '-status'],
-        o2: ['-conn', a[1], '-pass', '123', '-status'],
+        o1: ["-conn", a[0], "-pass", "123", "-status"],
+        o2: ["-conn", a[1], "-pass", "123", "-status"],
     }
-    doSyncObjAdminTicks([o1, o2], args, 10.0, currRes,
-                        stopFunc=lambda: currRes.get(o1) is not None and currRes.get(o2) is not None)
+    doSyncObjAdminTicks(
+        [o1, o2],
+        args,
+        10.0,
+        currRes,
+        stopFunc=lambda: currRes.get(o1) is not None and currRes.get(o2) is not None,
+    )
 
     assert len(currRes[o1]) == len(trueRes[o1])
     assert len(currRes[o2]) == len(trueRes[o2])
@@ -1486,31 +1773,39 @@ def test_syncobjAdminAddRemove():
     assert o1._isReady()
     assert o2._isReady()
 
-    trueRes = 'SUCCESS ADD ' + a[2]
+    trueRes = "SUCCESS ADD " + a[2]
 
     currRes = {}
 
     args = {
-        o1: ['-conn', a[0], '-add', a[2]],
+        o1: ["-conn", a[0], "-add", a[2]],
     }
 
-    doSyncObjAdminTicks([o1, o2], args, 10.0, currRes, stopFunc=lambda: currRes.get(o1) is not None)
+    doSyncObjAdminTicks(
+        [o1, o2], args, 10.0, currRes, stopFunc=lambda: currRes.get(o1) is not None
+    )
 
     assert currRes[o1] == trueRes
 
     o3 = TestObj(a[2], [a[1], a[0]], dynamicMembershipChange=True)
 
-    doTicks([o1, o2, o3], 10.0, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady())
+    doTicks(
+        [o1, o2, o3],
+        10.0,
+        stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady(),
+    )
 
     assert o1._isReady()
     assert o2._isReady()
     assert o3._isReady()
 
-    trueRes = 'SUCCESS REMOVE ' + a[2]
+    trueRes = "SUCCESS REMOVE " + a[2]
     args[o1] = None
-    args[o2] = ['-conn', a[1], '-remove', a[2]]
+    args[o2] = ["-conn", a[1], "-remove", a[2]]
 
-    doSyncObjAdminTicks([o1, o2, o3], args, 10.0, currRes, stopFunc=lambda: currRes.get(o2) is not None)
+    doSyncObjAdminTicks(
+        [o1, o2, o3], args, 10.0, currRes, stopFunc=lambda: currRes.get(o2) is not None
+    )
 
     assert currRes[o2] == trueRes
 
@@ -1530,14 +1825,28 @@ def test_journalWithAddNodes():
     journalFiles = [getNextJournalFile(), getNextJournalFile(), getNextJournalFile()]
     removeFiles(dumpFiles)
     removeFiles(journalFiles)
-    removeFiles([e + '.meta' for e in journalFiles])
+    removeFiles([e + ".meta" for e in journalFiles])
 
     random.seed(42)
 
     a = [getNextAddr(), getNextAddr(), getNextAddr()]
 
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[0], journalFile=journalFiles[0], dynamicMembershipChange=True)
-    o2 = TestObj(a[1], [a[0]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[1], journalFile=journalFiles[1], dynamicMembershipChange=True)
+    o1 = TestObj(
+        a[0],
+        [a[1]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[0],
+        journalFile=journalFiles[0],
+        dynamicMembershipChange=True,
+    )
+    o2 = TestObj(
+        a[1],
+        [a[0]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[1],
+        journalFile=journalFiles[1],
+        dynamicMembershipChange=True,
+    )
     objs = [o1, o2]
     doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o2._isReady())
 
@@ -1547,25 +1856,39 @@ def test_journalWithAddNodes():
     o1.addValue(150)
     o2.addValue(200)
 
-    doTicks(objs, 10, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350)
+    doTicks(
+        objs, 10, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350
+    )
 
     assert o1.getCounter() == 350
     assert o2.getCounter() == 350
     doTicks(objs, 2)
 
-
-    trueRes = 'SUCCESS ADD ' + a[2]
+    trueRes = "SUCCESS ADD " + a[2]
     currRes = {}
     args = {
-        o1: ['-conn', a[0], '-add', a[2]],
+        o1: ["-conn", a[0], "-add", a[2]],
     }
-    doSyncObjAdminTicks([o1, o2], args, 10.0, currRes, stopFunc=lambda: currRes.get(o1) is not None)
+    doSyncObjAdminTicks(
+        [o1, o2], args, 10.0, currRes, stopFunc=lambda: currRes.get(o1) is not None
+    )
 
     assert currRes[o1] == trueRes
 
-    o3 = TestObj(a[2], [a[1], a[0]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[2], journalFile=journalFiles[2], dynamicMembershipChange=True)
+    o3 = TestObj(
+        a[2],
+        [a[1], a[0]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[2],
+        journalFile=journalFiles[2],
+        dynamicMembershipChange=True,
+    )
 
-    doTicks([o1, o2, o3], 10.0, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady())
+    doTicks(
+        [o1, o2, o3],
+        10.0,
+        stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady(),
+    )
 
     assert o1._isReady()
     assert o2._isReady()
@@ -1575,19 +1898,46 @@ def test_journalWithAddNodes():
 
     doTicks(objs, 2)
 
-
     o1._destroy()
     o2._destroy()
     o3._destroy()
 
     removeFiles(dumpFiles)
 
-    o1 = TestObj(a[0], [a[1]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[0], journalFile=journalFiles[0], dynamicMembershipChange=True)
-    o2 = TestObj(a[1], [a[0]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[1], journalFile=journalFiles[1], dynamicMembershipChange=True)
-    o3 = TestObj(a[2], [a[1], a[0]], TEST_TYPE.JOURNAL_1, dumpFile=dumpFiles[2], journalFile=journalFiles[2], dynamicMembershipChange=True)
+    o1 = TestObj(
+        a[0],
+        [a[1]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[0],
+        journalFile=journalFiles[0],
+        dynamicMembershipChange=True,
+    )
+    o2 = TestObj(
+        a[1],
+        [a[0]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[1],
+        journalFile=journalFiles[1],
+        dynamicMembershipChange=True,
+    )
+    o3 = TestObj(
+        a[2],
+        [a[1], a[0]],
+        TEST_TYPE.JOURNAL_1,
+        dumpFile=dumpFiles[2],
+        journalFile=journalFiles[2],
+        dynamicMembershipChange=True,
+    )
 
     objs = [o1, o2, o3]
-    doTicks(objs, 10, stopFunc=lambda: o1._isReady() and o1.getCounter() == 350 and o3._isReady() and o3.getCounter() == 350)
+    doTicks(
+        objs,
+        10,
+        stopFunc=lambda: o1._isReady()
+        and o1.getCounter() == 350
+        and o3._isReady()
+        and o3.getCounter() == 350,
+    )
 
     assert o1._isReady()
     assert o3._isReady()
@@ -1597,7 +1947,9 @@ def test_journalWithAddNodes():
 
     o2.addValue(200)
 
-    doTicks(objs, 10, stopFunc=lambda: o1.getCounter() == 550 and o3.getCounter() == 550)
+    doTicks(
+        objs, 10, stopFunc=lambda: o1.getCounter() == 550 and o3.getCounter() == 550
+    )
 
     assert o1.getCounter() == 550
     assert o3.getCounter() == 550
@@ -1608,7 +1960,7 @@ def test_journalWithAddNodes():
 
     removeFiles(dumpFiles)
     removeFiles(journalFiles)
-    removeFiles([e + '.meta' for e in journalFiles])
+    removeFiles([e + ".meta" for e in journalFiles])
 
 
 def test_syncobjAdminSetVersion():
@@ -1632,42 +1984,56 @@ def test_syncobjAdminSetVersion():
 
     o2.testMethod()
 
-    doTicks([o1, o2], 10.0, stopFunc=lambda: o1.getValue('testKey') == 'valueVer1' and \
-                                             o2.getValue('testKey') == 'valueVer1')
+    doTicks(
+        [o1, o2],
+        10.0,
+        stopFunc=lambda: o1.getValue("testKey") == "valueVer1"
+        and o2.getValue("testKey") == "valueVer1",
+    )
 
-    assert o1.getValue('testKey') == 'valueVer1'
-    assert o2.getValue('testKey') == 'valueVer1'
+    assert o1.getValue("testKey") == "valueVer1"
+    assert o2.getValue("testKey") == "valueVer1"
 
-    trueRes = 'SUCCESS SET_VERSION 1'
+    trueRes = "SUCCESS SET_VERSION 1"
 
     currRes = {}
 
     args = {
-        o1: ['-conn', a[0], '-set_version', '1'],
+        o1: ["-conn", a[0], "-set_version", "1"],
     }
 
-    doSyncObjAdminTicks([o1, o2], args, 10.0, currRes, stopFunc=lambda: currRes.get(o1) is not None)
+    doSyncObjAdminTicks(
+        [o1, o2], args, 10.0, currRes, stopFunc=lambda: currRes.get(o1) is not None
+    )
 
     assert currRes[o1] == trueRes
 
-    doTicks([o1, o2], 10.0, stopFunc=lambda: o1.getCodeVersion() == 1 and o2.getCodeVersion() == 1)
+    doTicks(
+        [o1, o2],
+        10.0,
+        stopFunc=lambda: o1.getCodeVersion() == 1 and o2.getCodeVersion() == 1,
+    )
 
     assert o1.getCodeVersion() == 1
     assert o2.getCodeVersion() == 1
 
     o2.testMethod()
 
-    doTicks([o1, o2], 10.0, stopFunc=lambda: o1.getValue('testKey') == 'valueVer2' and \
-                                             o2.getValue('testKey') == 'valueVer2')
+    doTicks(
+        [o1, o2],
+        10.0,
+        stopFunc=lambda: o1.getValue("testKey") == "valueVer2"
+        and o2.getValue("testKey") == "valueVer2",
+    )
 
-    assert o1.getValue('testKey') == 'valueVer2'
-    assert o2.getValue('testKey') == 'valueVer2'
+    assert o1.getValue("testKey") == "valueVer2"
+    assert o2.getValue("testKey") == "valueVer2"
 
     o1._destroy()
     o2._destroy()
 
 
-@pytest.mark.skipif(os.name == 'nt', reason='temporary disabled for windows')
+@pytest.mark.skipif(os.name == "nt", reason="temporary disabled for windows")
 def test_syncobjWaitBinded():
     random.seed(42)
 
@@ -1688,21 +2054,27 @@ def test_syncobjWaitBinded():
     o3.destroy()
 
 
-@pytest.mark.skipif(os.name == 'nt', reason='temporary disabled for windows')
+@pytest.mark.skipif(os.name == "nt", reason="temporary disabled for windows")
 def test_unpickle():
-    data = {'foo': 'bar', 'command': b'\xfa', 'entries': [b'\xfb', b'\xfc']}
-    python2_cpickle = b'\x80\x02}q\x01(U\x03fooq\x02U\x03barq\x03U\x07commandq\x04U\x01\xfaU\x07entriesq\x05]q\x06(U\x01\xfbU\x01\xfceu.'
-    python2_pickle = b'\x80\x02}q\x00(U\x03fooq\x01U\x03barq\x02U\x07commandq\x03U\x01\xfaq\x04U\x07entriesq\x05]q\x06(U\x01\xfbq\x07U\x01\xfcq\x08eu.'
-    python3_pickle = b'\x80\x02}q\x00(X\x03\x00\x00\x00fooq\x01X\x03\x00\x00\x00barq\x02X\x07\x00\x00\x00commandq\x03c_codecs\nencode\nq\x04X\x02\x00\x00\x00\xc3\xbaq\x05X\x06\x00\x00\x00latin1q\x06\x86q\x07Rq\x08X\x07\x00\x00\x00entriesq\t]q\n(h\x04X\x02\x00\x00\x00\xc3\xbbq\x0bh\x06\x86q\x0cRq\rh\x04X\x02\x00\x00\x00\xc3\xbcq\x0eh\x06\x86q\x0fRq\x10eu.'
+    data = {"foo": "bar", "command": b"\xfa", "entries": [b"\xfb", b"\xfc"]}
+    python2_cpickle = b"\x80\x02}q\x01(U\x03fooq\x02U\x03barq\x03U\x07commandq\x04U\x01\xfaU\x07entriesq\x05]q\x06(U\x01\xfbU\x01\xfceu."
+    python2_pickle = b"\x80\x02}q\x00(U\x03fooq\x01U\x03barq\x02U\x07commandq\x03U\x01\xfaq\x04U\x07entriesq\x05]q\x06(U\x01\xfbq\x07U\x01\xfcq\x08eu."
+    python3_pickle = b"\x80\x02}q\x00(X\x03\x00\x00\x00fooq\x01X\x03\x00\x00\x00barq\x02X\x07\x00\x00\x00commandq\x03c_codecs\nencode\nq\x04X\x02\x00\x00\x00\xc3\xbaq\x05X\x06\x00\x00\x00latin1q\x06\x86q\x07Rq\x08X\x07\x00\x00\x00entriesq\t]q\n(h\x04X\x02\x00\x00\x00\xc3\xbbq\x0bh\x06\x86q\x0cRq\rh\x04X\x02\x00\x00\x00\xc3\xbcq\x0eh\x06\x86q\x0fRq\x10eu."
 
     python2_cpickle_data = pickle.loads(python2_cpickle)
-    assert data == python2_cpickle_data, 'Failed to unpickle data pickled by python2 cPickle'
+    assert (
+        data == python2_cpickle_data
+    ), "Failed to unpickle data pickled by python2 cPickle"
 
     python2_pickle_data = pickle.loads(python2_pickle)
-    assert data == python2_pickle_data, 'Failed to unpickle data pickled by python2 pickle'
+    assert (
+        data == python2_pickle_data
+    ), "Failed to unpickle data pickled by python2 pickle"
 
     python3_pickle_data = pickle.loads(python3_pickle)
-    assert data == python3_pickle_data, 'Failed to unpickle data pickled by python3 pickle'
+    assert (
+        data == python3_pickle_data
+    ), "Failed to unpickle data pickled by python3 pickle"
 
 
 class TestConsumer1(SyncObjConsumer):
@@ -1770,23 +2142,35 @@ def test_consumers():
     c11.set(42)
     c11.add(10)
     c12.add(15)
-    c13.set('testKey', 'testValue')
-    doTicks(objs, 10.0, stopFunc=lambda: c21.get() == 52 and c22.get() == 15 and c23.get('testKey') == 'testValue')
+    c13.set("testKey", "testValue")
+    doTicks(
+        objs,
+        10.0,
+        stopFunc=lambda: c21.get() == 52
+        and c22.get() == 15
+        and c23.get("testKey") == "testValue",
+    )
 
     assert c21.get() == 52
     assert c22.get() == 15
-    assert c23.get('testKey') == 'testValue'
+    assert c23.get("testKey") == "testValue"
 
     o1.forceLogCompaction()
     o2.forceLogCompaction()
     doTicks(objs, 0.5)
     objs = [o1, o2, o3]
 
-    doTicks(objs, 10.0, stopFunc=lambda: c31.get() == 52 and c32.get() == 15 and c33.get('testKey') == 'testValue')
+    doTicks(
+        objs,
+        10.0,
+        stopFunc=lambda: c31.get() == 52
+        and c32.get() == 15
+        and c33.get("testKey") == "testValue",
+    )
 
     assert c31.get() == 52
     assert c32.get() == 15
-    assert c33.get('testKey') == 'testValue'
+    assert c33.get("testKey") == "testValue"
 
     o1.destroy()
     o2.destroy()
@@ -1809,30 +2193,30 @@ def test_batteriesCommon():
 
     assert o1.isReady() and o2.isReady()
 
-    d1.set('testKey', 'testValue', sync=True)
-    doAutoTicks(3.0, stopFunc=lambda: d2.get('testKey') == 'testValue')
+    d1.set("testKey", "testValue", sync=True)
+    doAutoTicks(3.0, stopFunc=lambda: d2.get("testKey") == "testValue")
 
-    assert d2['testKey'] == 'testValue'
+    assert d2["testKey"] == "testValue"
 
-    d2.pop('testKey', sync=True)
-    doAutoTicks(3.0, stopFunc=lambda: d1.get('testKey') == None)
+    d2.pop("testKey", sync=True)
+    doAutoTicks(3.0, stopFunc=lambda: d1.get("testKey") == None)
 
-    assert d1.get('testKey') == None
+    assert d1.get("testKey") == None
 
-    assert l1.tryAcquire('test.lock1', sync=True) == True
-    assert l2.tryAcquire('test.lock1', sync=True) == False
-    assert l2.isAcquired('test.lock1') == False
+    assert l1.tryAcquire("test.lock1", sync=True) == True
+    assert l2.tryAcquire("test.lock1", sync=True) == False
+    assert l2.isAcquired("test.lock1") == False
 
     l1id = l1._ReplLockManager__selfID
     l1._ReplLockManager__lockImpl.prolongate(l1id, 0, _doApply=True)
 
-    l1.release('test.lock1', sync=True)
-    assert l2.tryAcquire('test.lock1', sync=True) == True
+    l1.release("test.lock1", sync=True)
+    assert l2.tryAcquire("test.lock1", sync=True) == True
 
-    assert d1.setdefault('keyA', 'valueA', sync=True) == 'valueA'
-    assert d2.setdefault('keyA', 'valueB', sync=True) == 'valueA'
-    d2.pop('keyA', sync=True)
-    assert d2.setdefault('keyA', 'valueB', sync=True) == 'valueB'
+    assert d1.setdefault("keyA", "valueA", sync=True) == "valueA"
+    assert d2.setdefault("keyA", "valueB", sync=True) == "valueA"
+    d2.pop("keyA", sync=True)
+    assert d2.setdefault("keyA", "valueB", sync=True) == "valueB"
 
     o1.destroy()
     o2.destroy()
@@ -1883,10 +2267,13 @@ def test_ReplList():
 def test_ReplDict():
     d = ReplDict()
 
-    d.reset({
-        1: 1,
-        2: 22,
-    }, _doApply=True)
+    d.reset(
+        {
+            1: 1,
+            2: 22,
+        },
+        _doApply=True,
+    )
     assert d.rawData() == {
         1: 1,
         2: 22,
@@ -1907,10 +2294,13 @@ def test_ReplDict():
     assert d.setdefault(1, 50, _doApply=True) == 20
     assert d.setdefault(3, 50, _doApply=True) == 50
 
-    d.update({
-        5: 5,
-        6: 7,
-    }, _doApply=True)
+    d.update(
+        {
+            5: 5,
+            6: 7,
+        },
+        _doApply=True,
+    )
 
     assert d.rawData() == {
         1: 20,
@@ -2033,7 +2423,10 @@ def test_ReplPriorityQueue():
 
 
 # https://github.com/travis-ci/travis-ci/issues/8695
-@pytest.mark.skipif(os.name == 'nt' or os.environ.get('TRAVIS') == 'true', reason='temporary disabled for windows')
+@pytest.mark.skipif(
+    os.name == "nt" or os.environ.get("TRAVIS") == "true",
+    reason="temporary disabled for windows",
+)
 def test_ipv6():
     random.seed(42)
 
@@ -2059,7 +2452,9 @@ def test_ipv6():
     o1.addValue(150)
     o2.addValue(200)
 
-    doTicks(objs, 10.0, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350)
+    doTicks(
+        objs, 10.0, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350
+    )
 
     assert o1._isReady()
     assert o2._isReady()
@@ -2098,7 +2493,9 @@ def test_localhost():
     o1.addValue(150)
     o2.addValue(200)
 
-    doTicks(objs, 10.0, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350)
+    doTicks(
+        objs, 10.0, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350
+    )
 
     assert o1._isReady()
     assert o2._isReady()
@@ -2159,7 +2556,9 @@ class ZeroDeployConsumerBravo(SyncObjConsumer):
 class ZeroDeployTestObj(SyncObj):
     def __init__(self, selfAddr, otherAddrs, consumers):
         cfg = SyncObjConf(autoTick=False)
-        super(ZeroDeployTestObj, self).__init__(selfAddr, otherAddrs, cfg, consumers=consumers)
+        super(ZeroDeployTestObj, self).__init__(
+            selfAddr, otherAddrs, cfg, consumers=consumers
+        )
 
     @replicated
     def someMethod(self):
@@ -2192,57 +2591,66 @@ def test_zeroDeployVersions():
 
     o1 = ZeroDeployTestObj(a[0], [], [cAlpha, cBravo])
 
-    assert hasattr(o1, 'otherMethod_v0') == True
-    assert hasattr(o1, 'lastMethod_v2') == True
-    assert hasattr(o1, 'lastMethod_v3') == True
-    assert hasattr(o1, 'lastMethod_v4') == False
-    assert hasattr(cAlpha, 'methodTwo_v0') == True
-    assert hasattr(cBravo, 'methodTwo_v3') == True
+    assert hasattr(o1, "otherMethod_v0") == True
+    assert hasattr(o1, "lastMethod_v2") == True
+    assert hasattr(o1, "lastMethod_v3") == True
+    assert hasattr(o1, "lastMethod_v4") == False
+    assert hasattr(cAlpha, "methodTwo_v0") == True
+    assert hasattr(cBravo, "methodTwo_v3") == True
 
-    assert o1._methodToID['lastMethod_v2'] > o1._methodToID['otherMethod_v0']
-    assert o1._methodToID['lastMethod_v3'] > o1._methodToID['lastMethod_v2']
-    assert o1._methodToID['lastMethod_v3'] > o1._methodToID['someMethod_v0']
-    assert o1._methodToID['thirdMethod_v1'] > o1._methodToID['someMethod_v0']
+    assert o1._methodToID["lastMethod_v2"] > o1._methodToID["otherMethod_v0"]
+    assert o1._methodToID["lastMethod_v3"] > o1._methodToID["lastMethod_v2"]
+    assert o1._methodToID["lastMethod_v3"] > o1._methodToID["someMethod_v0"]
+    assert o1._methodToID["thirdMethod_v1"] > o1._methodToID["someMethod_v0"]
 
-    assert o1._methodToID['lastMethod_v2'] > o1._methodToID[(id(cAlpha), 'methodTwo_v0')]
-    assert o1._methodToID[id(cBravo), 'methodTwo_v3'] > o1._methodToID['lastMethod_v2']
+    assert (
+        o1._methodToID["lastMethod_v2"] > o1._methodToID[(id(cAlpha), "methodTwo_v0")]
+    )
+    assert o1._methodToID[id(cBravo), "methodTwo_v3"] > o1._methodToID["lastMethod_v2"]
 
-    assert 'someMethod' not in o1._methodToID
-    assert 'thirdMethod' not in o1._methodToID
-    assert 'lastMethod' not in o1._methodToID
+    assert "someMethod" not in o1._methodToID
+    assert "thirdMethod" not in o1._methodToID
+    assert "lastMethod" not in o1._methodToID
 
 
 def test_dnsResolverBug(monkeypatch):
     monkeypatch.setattr(dns_resolver, "monotonicTime", lambda: 0.0)
     resolver = dns_resolver.DnsCachingResolver(600, 30)
-    ip = resolver.resolve('localhost')
-    assert ip == '127.0.0.1'
+    ip = resolver.resolve("localhost")
+    assert ip == "127.0.0.1"
+
 
 class MockSocket(object):
     def __init__(self, socket, numSuccessSends):
         self.socket = socket
         self.numSuccessSends = numSuccessSends
+
     def send(self, data):
         self.numSuccessSends -= 1
         if self.numSuccessSends <= 0:
             return -100500
         return self.socket.send(data)
+
     def close(self):
         return self.socket.close()
+
     def getsockopt(self, *args, **kwargs):
         return self.socket.getsockopt(*args, **kwargs)
+
     def recv(self, *args, **kwargs):
         return self.socket.recv(*args, **kwargs)
 
-def setMockSocket(o, numSuccess = 0):
+
+def setMockSocket(o, numSuccess=0):
     for readonlyNode in o._SyncObj__readonlyNodes:
         for node, conn in o._SyncObj__transport._connections.items():
             if node == readonlyNode:
                 origSocket = conn._TcpConnection__socket
                 conn._TcpConnection__socket = MockSocket(origSocket, numSuccess)
-                #origSend = origSocket.send
-                #origSocket.send = lambda x: mockSend(origSend, x)
-                #print("Set mock send")
+                # origSend = origSocket.send
+                # origSocket.send = lambda x: mockSend(origSend, x)
+                # print("Set mock send")
+
 
 def test_readOnlyDrop():
     random.seed(42)
@@ -2258,7 +2666,9 @@ def test_readOnlyDrop():
     assert not o2._isReady()
     assert not o3._isReady()
 
-    doTicks(objs, 10.0, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady())
+    doTicks(
+        objs, 10.0, stopFunc=lambda: o1._isReady() and o2._isReady() and o3._isReady()
+    )
 
     o1.waitBinded()
     o2.waitBinded()
@@ -2274,7 +2684,13 @@ def test_readOnlyDrop():
     o1.addValue(150)
     o2.addValue(200)
 
-    doTicks(objs, 10.0, stopFunc=lambda: o1.getCounter() == 350 and o2.getCounter() == 350 and o3.getCounter() == 350)
+    doTicks(
+        objs,
+        10.0,
+        stopFunc=lambda: o1.getCounter() == 350
+        and o2.getCounter() == 350
+        and o3.getCounter() == 350,
+    )
 
     assert o1._isReady()
     assert o2._isReady()
@@ -2294,7 +2710,9 @@ def test_readOnlyDrop():
     for i in range(200):
         o2.addValue(1)
 
-    doTicks(objs, 10.0, stopFunc=lambda: o1.getCounter() == 700 and o2.getCounter() == 700)
+    doTicks(
+        objs, 10.0, stopFunc=lambda: o1.getCounter() == 700 and o2.getCounter() == 700
+    )
 
     assert o1.getCounter() == 700
     assert o2.getCounter() == 700

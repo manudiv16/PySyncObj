@@ -6,6 +6,7 @@ import shutil
 from .version import VERSION
 from .pickle import to_bytes, loads, dumps
 
+
 class Journal(object):
 
     def add(self, command, idx, term):
@@ -74,17 +75,18 @@ class MemoryJournal(Journal):
         return 1
 
 
-
 class ResizableFile(object):
 
-    def __init__(self, fileName, initialSize = 1024, resizeFactor = 2.0, defaultContent = None):
+    def __init__(
+        self, fileName, initialSize=1024, resizeFactor=2.0, defaultContent=None
+    ):
         self.__fileName = fileName
         self.__resizeFactor = resizeFactor
         if not os.path.exists(fileName):
-            with open(fileName, 'wb') as f:
+            with open(fileName, "wb") as f:
                 if defaultContent is not None:
                     f.write(defaultContent)
-        self.__f = open(fileName, 'r+b')
+        self.__f = open(fileName, "r+b")
         self.__mm = mmap.mmap(self.__f.fileno(), 0)
         currSize = self.__mm.size()
         if currSize < initialSize:
@@ -101,17 +103,17 @@ class ResizableFile(object):
                 self.__mm.resize(int(self.__mm.size() * self.__resizeFactor))
             except SystemError:
                 self.__extand(int(self.__mm.size() * self.__resizeFactor) - currSize)
-        self.__mm[offset:offset + size] = values
+        self.__mm[offset : offset + size] = values
 
     def read(self, offset, size):
-        return self.__mm[offset:offset + size]
+        return self.__mm[offset : offset + size]
 
     def __extand(self, bytesToAdd):
         self.__mm.close()
         self.__f.close()
-        with open(self.__fileName, 'ab') as f:
-            f.write(b'\0' * bytesToAdd)
-        self.__f = open(self.__fileName, 'r+b')
+        with open(self.__fileName, "ab") as f:
+            f.write(b"\0" * bytesToAdd)
+        self.__f = open(self.__fileName, "r+b")
         self.__mm = mmap.mmap(self.__f.fileno(), 0)
 
     def _destroy(self):
@@ -130,23 +132,23 @@ class MetaStorer(object):
     def getMeta(self):
         meta = {}
         try:
-            meta = loads(open(self.__path, 'rb').read())
+            meta = loads(open(self.__path, "rb").read())
         except:
             pass
         return meta
 
     def storeMeta(self, meta):
-        with open(self.__path + '.tmp', 'wb') as f:
+        with open(self.__path + ".tmp", "wb") as f:
             f.write(dumps(meta))
             f.flush()
-        shutil.move(self.__path + '.tmp', self.__path)
+        shutil.move(self.__path + ".tmp", self.__path)
 
     def getPath(self):
         return self.__path
 
 
 JOURNAL_FORMAT_VERSION = 1
-APP_NAME = b'PYSYNCOBJ'
+APP_NAME = b"PYSYNCOBJ"
 APP_VERSION = str.encode(VERSION)
 
 NAME_SIZE = 24
@@ -162,41 +164,52 @@ LAST_RECORD_OFFSET_OFFSET = NAME_SIZE + VERSION_SIZE + 4
 #                (record1)                   |               (record2)                |  ...
 #
 
+
 class FileJournal(Journal):
 
     def __init__(self, journalFile):
-        self.__journalFile = ResizableFile(journalFile, defaultContent=self.__getDefaultHeader())
+        self.__journalFile = ResizableFile(
+            journalFile, defaultContent=self.__getDefaultHeader()
+        )
         self.__journal = []
-        self.__metaStorer = MetaStorer(journalFile + '.meta')
+        self.__metaStorer = MetaStorer(journalFile + ".meta")
         self.__meta = self.__metaStorer.getMeta()
         self.__metaSaved = True
         currentOffset = FIRST_RECORD_OFFSET
         lastRecordOffset = self.__getLastRecordOffset()
         while currentOffset < lastRecordOffset:
-            nextRecordSize = struct.unpack('<I', self.__journalFile.read(currentOffset, 4))[0]
+            nextRecordSize = struct.unpack(
+                "<I", self.__journalFile.read(currentOffset, 4)
+            )[0]
             nextRecordData = self.__journalFile.read(currentOffset + 4, nextRecordSize)
             command = nextRecordData[16:]
-            idx, term = struct.unpack('<QQ', nextRecordData[:16])
+            idx, term = struct.unpack("<QQ", nextRecordData[:16])
             self.__journal.append((command, idx, term))
             currentOffset += nextRecordSize + 8
         self.__currentOffset = currentOffset
 
     def __getDefaultHeader(self):
-        appName = APP_NAME + b'\0' * (NAME_SIZE - len(APP_NAME))
-        appVersion = APP_VERSION + b'\0' * (VERSION_SIZE - len(APP_VERSION))
-        header = appName + appVersion + struct.pack('<II', JOURNAL_FORMAT_VERSION, FIRST_RECORD_OFFSET)
+        appName = APP_NAME + b"\0" * (NAME_SIZE - len(APP_NAME))
+        appVersion = APP_VERSION + b"\0" * (VERSION_SIZE - len(APP_VERSION))
+        header = (
+            appName
+            + appVersion
+            + struct.pack("<II", JOURNAL_FORMAT_VERSION, FIRST_RECORD_OFFSET)
+        )
         return header
 
     def __getLastRecordOffset(self):
-        return struct.unpack('<I', self.__journalFile.read(LAST_RECORD_OFFSET_OFFSET, 4))[0]
+        return struct.unpack(
+            "<I", self.__journalFile.read(LAST_RECORD_OFFSET_OFFSET, 4)
+        )[0]
 
     def __setLastRecordOffset(self, offset):
-        self.__journalFile.write(LAST_RECORD_OFFSET_OFFSET, struct.pack('<I', offset))
+        self.__journalFile.write(LAST_RECORD_OFFSET_OFFSET, struct.pack("<I", offset))
 
     def add(self, command, idx, term):
         self.__journal.append((command, idx, term))
-        cmdData = struct.pack('<QQ', idx, term) + to_bytes(command)
-        cmdLenData = struct.pack('<I', len(cmdData))
+        cmdData = struct.pack("<QQ", idx, term) + to_bytes(command)
+        cmdLenData = struct.pack("<I", len(cmdData))
         cmdData = cmdLenData + cmdData + cmdLenData
         self.__journalFile.write(self.__currentOffset, cmdData)
         self.__currentOffset += len(cmdData)
@@ -219,7 +232,9 @@ class FileJournal(Journal):
         currentOffset = self.__currentOffset
         removedEntries = 0
         while removedEntries < entriesToRemove:
-            prevRecordSize = struct.unpack('<I', self.__journalFile.read(currentOffset - 4, 4))[0]
+            prevRecordSize = struct.unpack(
+                "<I", self.__journalFile.read(currentOffset - 4, 4)
+            )[0]
             currentOffset -= prevRecordSize + 8
             removedEntries += 1
             if removedEntries % 10 == 0:
@@ -240,11 +255,11 @@ class FileJournal(Journal):
         self.__journalFile.flush()
 
     def setRaftCommitIndex(self, raftCommitIndex):
-        self.__meta['raftCommitIndex'] = raftCommitIndex
+        self.__meta["raftCommitIndex"] = raftCommitIndex
         self.__metaSaved = False
 
     def getRaftCommitIndex(self):
-        return self.__meta.get('raftCommitIndex', 1)
+        return self.__meta.get("raftCommitIndex", 1)
 
     def onOneSecondTimer(self):
         if not self.__metaSaved:
@@ -252,7 +267,7 @@ class FileJournal(Journal):
             self.__metaSaved = True
 
 
-def createJournal(journalFile = None):
+def createJournal(journalFile=None):
     if journalFile is None:
         return MemoryJournal()
     return FileJournal(journalFile)

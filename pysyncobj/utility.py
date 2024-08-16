@@ -41,12 +41,14 @@ class TcpUtility(Utility):
 
     def __init__(self, password=None, timeout=900.0):
         self.__timeout = timeout
-        self.__poller = createPoller('auto')
-        self.__connection = TcpConnection(self.__poller,
-                                          onDisconnected=self.__onDisconnected,
-                                          onMessageReceived=self.__onMessageReceived,
-                                          onConnected=self.__onConnected,
-                                          timeout=timeout)
+        self.__poller = createPoller("auto")
+        self.__connection = TcpConnection(
+            self.__poller,
+            onDisconnected=self.__onDisconnected,
+            onMessageReceived=self.__onMessageReceived,
+            onConnected=self.__onConnected,
+            timeout=timeout,
+        )
         if password is not None:
             self.__connection.encryptor = getEncryptor(password)
 
@@ -61,7 +63,7 @@ class TcpUtility(Utility):
             try:
                 node = TCPNode(node)
             except Exception:
-                self.__error = 'invalid address to connect'
+                self.__error = "invalid address to connect"
                 return
 
         self.__isConnected = self.__connection.connect(node.ip, node.port)
@@ -95,7 +97,7 @@ class TcpUtility(Utility):
     def __onDisconnected(self):
         self.__isConnected = False
         if self.__result is None:
-            self.__error = 'connection lost'
+            self.__error = "connection lost"
 
     def __onConnected(self):
         if self.__connection.encryptor:

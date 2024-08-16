@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import sys
+
 try:
     from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 except ImportError:
@@ -29,6 +30,7 @@ class KVStorage(SyncObj):
     def get(self, key):
         return self.__data.get(key, None)
 
+
 _g_kvstorage = None
 
 
@@ -46,14 +48,16 @@ class KVRequestHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-type", "text/plain")
             self.end_headers()
-            self.wfile.write(value.encode('utf-8'))
+            self.wfile.write(value.encode("utf-8"))
         except:
             pass
 
     def do_POST(self):
         try:
             key = self.path
-            value = self.rfile.read(int(self.headers.get('content-length'))).decode('utf-8')
+            value = self.rfile.read(int(self.headers.get("content-length"))).decode(
+                "utf-8"
+            )
             _g_kvstorage.set(key, value)
             self.send_response(201)
             self.send_header("Content-type", "text/plain")
@@ -64,7 +68,10 @@ class KVRequestHandler(BaseHTTPRequestHandler):
 
 def main():
     if len(sys.argv) < 5:
-        print('Usage: %s http_port dump_file.bin selfHost:port partner1Host:port partner2Host:port ...' % sys.argv[0])
+        print(
+            "Usage: %s http_port dump_file.bin selfHost:port partner1Host:port partner2Host:port ..."
+            % sys.argv[0]
+        )
         sys.exit(-1)
 
     httpPort = int(sys.argv[1])
@@ -74,9 +81,9 @@ def main():
 
     global _g_kvstorage
     _g_kvstorage = KVStorage(selfAddr, partners, dumpFile)
-    httpServer = HTTPServer(('', httpPort), KVRequestHandler)
+    httpServer = HTTPServer(("", httpPort), KVRequestHandler)
     httpServer.serve_forever()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

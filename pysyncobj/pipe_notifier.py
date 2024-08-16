@@ -6,7 +6,7 @@ from .poller import POLL_EVENT_TYPE
 
 class PipeNotifier(object):
 
-    def __init__(self, poller, callback = None):
+    def __init__(self, poller, callback=None):
         self.__callback = callback
         self.__pipeR, self.__pipeW = os.pipe()
 
@@ -19,7 +19,7 @@ class PipeNotifier(object):
         poller.subscribe(self.__pipeR, self.__onNewNotification, POLL_EVENT_TYPE.READ)
 
     def notify(self):
-        os.write(self.__pipeW, b'o')
+        os.write(self.__pipeW, b"o")
 
     def __onNewNotification(self, descr, eventMask):
         try:
