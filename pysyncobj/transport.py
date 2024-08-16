@@ -201,19 +201,25 @@ class TCPTransport(Transport):
         super(TCPTransport, self).__init__(syncObj, selfNode, otherNodes)
         self._syncObj = syncObj
         self._server = None
-        self._connections = {} # Node object -> TcpConnection object
-        self._unknownConnections = set() # set of TcpConnection objects
+        self._connections = {}  # Node object -> TcpConnection object
+        self._unknownConnections = set()  # set of TcpConnection objects
         self._selfNode = selfNode
         self._selfIsReadonlyNode = selfNode is None
-        self._nodes = set() # set of TCPNode
-        self._readonlyNodes = set() # set of Node
-        self._nodeAddrToNode = {} # node ID/address -> TCPNode (does not include read-only nodes)
-        self._lastConnectAttempt = {} # TPCNode -> float (seconds since epoch)
-        self._preventConnectNodes = set() # set of TCPNode to which no (re)connection should be triggered on _connectIfNecessary; used via dropNode and destroy to cleanly remove a node
+        self._nodes = set()  # set of TCPNode
+        self._readonlyNodes = set()  # set of Node
+        self._nodeAddrToNode = (
+            {}
+        )  # node ID/address -> TCPNode (does not include read-only nodes)
+        self._lastConnectAttempt = {}  # TPCNode -> float (seconds since epoch)
+        self._preventConnectNodes = (
+            set()
+        )  # set of TCPNode to which no (re)connection should be triggered on _connectIfNecessary; used via dropNode and destroy to cleanly remove a node
         self._readonlyNodesCounter = 0
         self._lastBindAttemptTime = 0
         self._bindAttempts = 0
-        self._bindOverEvent = threading.Event() # gets triggered either when the server has either been bound correctly or when the number of bind attempts exceeds the config value maxBindRetries
+        self._bindOverEvent = (
+            threading.Event()
+        )  # gets triggered either when the server has either been bound correctly or when the number of bind attempts exceeds the config value maxBindRetries
         self._ready = False
         self._send_random_sleep_duration = 0
 
@@ -262,24 +268,29 @@ class TCPTransport(Transport):
 
         conf = self._syncObj.conf
         bindAddr = conf.bindAddress
-        seflAddr = getattr(self._selfNode, 'address')
+        seflAddr = getattr(self._selfNode, "address")
         if bindAddr is not None:
-            host, port = bindAddr.rsplit(':', 1)
+            host, port = bindAddr.rsplit(":", 1)
         elif seflAddr is not None:
-            host, port = seflAddr.rsplit(':', 1)
-            if ':' in host:
-                host = '::'
+            host, port = seflAddr.rsplit(":", 1)
+            if ":" in host:
+                host = "::"
             else:
-                host = '0.0.0.0'
+                host = "0.0.0.0"
         else:
-            raise RuntimeError('Unable to determine bind address')
-        
-        if host != '0.0.0.0':
+            raise RuntimeError("Unable to determine bind address")
+
+        if host != "0.0.0.0":
             host = globalDnsResolver().resolve(host)
-        self._server = TcpServer(self._syncObj._poller, host, port, onNewConnection = self._onNewIncomingConnection,
-                                 sendBufferSize = conf.sendBufferSize,
-                                 recvBufferSize = conf.recvBufferSize,
-                                 connectionTimeout = conf.connectionTimeout)
+        self._server = TcpServer(
+            self._syncObj._poller,
+            host,
+            port,
+            onNewConnection=self._onNewIncomingConnection,
+            sendBufferSize=conf.sendBufferSize,
+            recvBufferSize=conf.recvBufferSize,
+            connectionTimeout=conf.connectionTimeout,
+        )
 
     def _maybeBind(self):
         """
@@ -288,14 +299,22 @@ class TCPTransport(Transport):
         :raises TransportNotReadyError if the bind attempt fails
         """
 
-        if self._ready or self._selfIsReadonlyNode or monotonicTime() < self._lastBindAttemptTime + self._syncObj.conf.bindRetryTime:
+        if (
+            self._ready
+            or self._selfIsReadonlyNode
+            or monotonicTime()
+            < self._lastBindAttemptTime + self._syncObj.conf.bindRetryTime
+        ):
             return
         self._lastBindAttemptTime = monotonicTime()
         try:
             self._server.bind()
         except Exception as e:
             self._bindAttempts += 1
-            if self._syncObj.conf.maxBindRetries and self._bindAttempts >= self._syncObj.conf.maxBindRetries:
+            if (
+                self._syncObj.conf.maxBindRetries
+                and self._bindAttempts >= self._syncObj.conf.maxBindRetries
+            ):
                 self._bindOverEvent.set()
                 raise TransportNotReadyError
         else:
@@ -325,7 +344,9 @@ class TCPTransport(Transport):
         encryptor = self._syncObj.encryptor
         if encryptor:
             conn.encryptor = encryptor
-        conn.setOnMessageReceivedCallback(functools.partial(self._onIncomingMessageReceived, conn))
+        conn.setOnMessageReceivedCallback(
+            functools.partial(self._onIncomingMessageReceived, conn)
+        )
         conn.setOnDisconnectedCallback(functools.partial(self._onDisconnected, conn))
 
     def _onIncomingMessageReceived(self, conn, message):
@@ -350,9 +371,11 @@ class TCPTransport(Transport):
             return
 
         # At this point, message should be either a node ID (i.e. address) or 'readonly'
-        node = self._nodeAddrToNode[message] if message in self._nodeAddrToNode else None
+        node = (
+            self._nodeAddrToNode[message] if message in self._nodeAddrToNode else None
+        )
 
-        if node is None and message != 'readonly':
+        if node is None and message != "readonly":
             conn.disconnect()
             self._unknownConnections.discard(conn)
             return
@@ -366,7 +389,9 @@ class TCPTransport(Transport):
 
         self._unknownConnections.discard(conn)
         self._connections[node] = conn
-        conn.setOnMessageReceivedCallback(functools.partial(self._onMessageReceived, node))
+        conn.setOnMessageReceivedCallback(
+            functools.partial(self._onMessageReceived, node)
+        )
         if not readonly:
             self._onNodeConnected(node)
         else:
@@ -376,7 +401,7 @@ class TCPTransport(Transport):
         command = message[0]
         if command in self._onUtilityMessageCallbacks:
             message[0] = command.upper()
-            callback = functools.partial(self._utilityCallback, conn = conn, args = message)
+            callback = functools.partial(self._utilityCallback, conn=conn, args=message)
             try:
                 self._onUtilityMessageCallbacks[command](message[1:], callback)
             except Exception as e:
@@ -394,8 +419,8 @@ class TCPTransport(Transport):
         """
 
         if not (err is None and res):
-            cmdResult = 'SUCCESS' if err == FAIL_REASON.SUCCESS else 'FAIL'
-            res = ' '.join(map(str, [cmdResult] + args))
+            cmdResult = "SUCCESS" if err == FAIL_REASON.SUCCESS else "FAIL"
+            res = " ".join(map(str, [cmdResult] + args))
         conn.send(res)
 
     def _shouldConnect(self, node):
@@ -406,7 +431,11 @@ class TCPTransport(Transport):
         :type node: Node
         """
 
-        return isinstance(node, TCPNode) and node not in self._preventConnectNodes and (self._selfIsReadonlyNode or self._selfNode.address > node.address)
+        return (
+            isinstance(node, TCPNode)
+            and node not in self._preventConnectNodes
+            and (self._selfIsReadonlyNode or self._selfNode.address > node.address)
+        )
 
     def _connectIfNecessarySingle(self, node):
         """
@@ -416,12 +445,21 @@ class TCPTransport(Transport):
         :type node: Node
         """
 
-        if node in self._connections and self._connections[node].state != CONNECTION_STATE.DISCONNECTED:
+        if (
+            node in self._connections
+            and self._connections[node].state != CONNECTION_STATE.DISCONNECTED
+        ):
             return True
         if not self._shouldConnect(node):
             return False
-        assert node in self._connections # Since we "should connect" to this node, there should always be a connection object already in place.
-        if node in self._lastConnectAttempt and monotonicTime() - self._lastConnectAttempt[node] < self._syncObj.conf.connectionRetryTime:
+        assert (
+            node in self._connections
+        )  # Since we "should connect" to this node, there should always be a connection object already in place.
+        if (
+            node in self._lastConnectAttempt
+            and monotonicTime() - self._lastConnectAttempt[node]
+            < self._syncObj.conf.connectionRetryTime
+        ):
             return False
         self._lastConnectAttempt[node] = monotonicTime()
         return self._connections[node].connect(node.ip, node.port)
@@ -436,7 +474,7 @@ class TCPTransport(Transport):
 
     def _sendSelfAddress(self, conn):
         if self._selfIsReadonlyNode:
-            conn.send('readonly')
+            conn.send("readonly")
         else:
             conn.send(self._selfNode.address)
 
@@ -451,7 +489,9 @@ class TCPTransport(Transport):
         """
 
         if self._syncObj.encryptor:
-            conn.setOnMessageReceivedCallback(functools.partial(self._onOutgoingMessageReceived, conn)) # So we can process the sendRandKey
+            conn.setOnMessageReceivedCallback(
+                functools.partial(self._onOutgoingMessageReceived, conn)
+            )  # So we can process the sendRandKey
             conn.recvRandKey = os.urandom(32)
             conn.send(conn.recvRandKey)
         else:
@@ -475,7 +515,9 @@ class TCPTransport(Transport):
             self._sendSelfAddress(conn)
 
         node = self._connToNode(conn)
-        conn.setOnMessageReceivedCallback(functools.partial(self._onMessageReceived, node))
+        conn.setOnMessageReceivedCallback(
+            functools.partial(self._onMessageReceived, node)
+        )
         self._onNodeConnected(node)
 
     def _onDisconnected(self, conn):
@@ -520,16 +562,22 @@ class TCPTransport(Transport):
         self._nodeAddrToNode[node.address] = node
         if self._shouldConnect(node):
             conn = TcpConnection(
-                poller = self._syncObj._poller,
-                timeout = self._syncObj.conf.connectionTimeout,
-                sendBufferSize = self._syncObj.conf.sendBufferSize,
-                recvBufferSize = self._syncObj.conf.recvBufferSize,
-                keepalive = self._syncObj.conf.tcp_keepalive,
+                poller=self._syncObj._poller,
+                timeout=self._syncObj.conf.connectionTimeout,
+                sendBufferSize=self._syncObj.conf.sendBufferSize,
+                recvBufferSize=self._syncObj.conf.recvBufferSize,
+                keepalive=self._syncObj.conf.tcp_keepalive,
             )
             conn.encryptor = self._syncObj.encryptor
-            conn.setOnConnectedCallback(functools.partial(self._onOutgoingConnected, conn))
-            conn.setOnMessageReceivedCallback(functools.partial(self._onMessageReceived, node))
-            conn.setOnDisconnectedCallback(functools.partial(self._onDisconnected, conn))
+            conn.setOnConnectedCallback(
+                functools.partial(self._onOutgoingConnected, conn)
+            )
+            conn.setOnMessageReceivedCallback(
+                functools.partial(self._onMessageReceived, node)
+            )
+            conn.setOnDisconnectedCallback(
+                functools.partial(self._onDisconnected, conn)
+            )
             self._connections[node] = conn
 
     def dropNode(self, node):
@@ -565,7 +613,10 @@ class TCPTransport(Transport):
         :rtype bool
         """
 
-        if node not in self._connections or self._connections[node].state != CONNECTION_STATE.CONNECTED:
+        if (
+            node not in self._connections
+            or self._connections[node].state != CONNECTION_STATE.CONNECTED
+        ):
             return False
         if self._send_random_sleep_duration:
             time.sleep(random.random() * self._send_random_sleep_duration)

@@ -24,7 +24,7 @@ if is_py3:
         self.append(data)
 
     def _load_binstring(self):
-        len, = unpack('<i', self.read(4))
+        (len,) = unpack("<i", self.read(4))
         if len < 0:
             raise pickle.UnpicklingError("BINSTRING pickle has negative byte count")
         data = self.read(len)
@@ -46,7 +46,7 @@ __protocol = 2
 
 
 def to_bytes(data):
-    return data if isinstance(data, bytes) else data.encode('utf-8')
+    return data if isinstance(data, bytes) else data.encode("utf-8")
 
 
 def load(file):

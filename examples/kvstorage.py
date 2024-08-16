@@ -2,13 +2,14 @@
 from __future__ import print_function
 
 import sys
+
 sys.path.append("../")
 from pysyncobj import SyncObj, SyncObjConf, replicated
 
 
 class KVStorage(SyncObj):
     def __init__(self, selfAddress, partnerAddrs):
-        cfg = SyncObjConf(dynamicMembershipChange = True)
+        cfg = SyncObjConf(dynamicMembershipChange=True)
         super(KVStorage, self).__init__(selfAddress, partnerAddrs, cfg)
         self.__data = {}
 
@@ -23,16 +24,17 @@ class KVStorage(SyncObj):
     def get(self, key):
         return self.__data.get(key, None)
 
+
 _g_kvstorage = None
 
 
 def main():
     if len(sys.argv) < 2:
-        print('Usage: %s selfHost:port partner1Host:port partner2Host:port ...')
+        print("Usage: %s selfHost:port partner1Host:port partner2Host:port ...")
         sys.exit(-1)
 
     selfAddr = sys.argv[1]
-    if selfAddr == 'readonly':
+    if selfAddr == "readonly":
         selfAddr = None
     partners = sys.argv[2:]
 
@@ -49,14 +51,15 @@ def main():
         cmd = get_input(">> ").split()
         if not cmd:
             continue
-        elif cmd[0] == 'set':
+        elif cmd[0] == "set":
             _g_kvstorage.set(cmd[1], cmd[2])
-        elif cmd[0] == 'get':
+        elif cmd[0] == "get":
             print(_g_kvstorage.get(cmd[1]))
-        elif cmd[0] == 'pop':
+        elif cmd[0] == "pop":
             print(_g_kvstorage.pop(cmd[1]))
         else:
-            print('Wrong command')
+            print("Wrong command")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

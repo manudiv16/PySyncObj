@@ -11,9 +11,16 @@ logger = logging.getLogger(__name__)
 
 
 class Serializer(object):
-    def __init__(self, fileName, transmissionBatchSize, tryUseFork,
-                 serializer, deserializer, serializeChecker):
-        self.__useFork = tryUseFork and hasattr(os, 'fork') and serializer is None
+    def __init__(
+        self,
+        fileName,
+        transmissionBatchSize,
+        tryUseFork,
+        serializer,
+        deserializer,
+        serializeChecker,
+    ):
+        self.__useFork = tryUseFork and hasattr(os, "fork") and serializer is None
         self.__fileName = fileName
         self.__transmissionBatchSize = transmissionBatchSize
         self.__pid = 0
@@ -35,7 +42,11 @@ class Serializer(object):
         # In-memory case
         if self.__fileName is None or not self.__useFork:
             if self.__pid in (-1, -2):
-                serializeState = SERIALIZER_STATE.SUCCESS if self.__pid == -1 else SERIALIZER_STATE.FAILED
+                serializeState = (
+                    SERIALIZER_STATE.SUCCESS
+                    if self.__pid == -1
+                    else SERIALIZER_STATE.FAILED
+                )
                 self.__pid = 0
                 self.__transmissions = {}
                 return serializeState, self.__currentID
@@ -68,7 +79,7 @@ class Serializer(object):
         # In-memory case
         if self.__fileName is None:
             with BytesIO() as io:
-                with gzip.GzipFile(fileobj=io, mode='wb') as g:
+                with gzip.GzipFile(fileobj=io, mode="wb") as g:
                     pickle.dump(data, g)
                 self.__inMemorySerializedData = io.getvalue()
             self.__pid = -1
@@ -82,12 +93,12 @@ class Serializer(object):
                 return
 
         try:
-            tmpFile = self.__fileName + '.tmp'
+            tmpFile = self.__fileName + ".tmp"
             if self.__serializer is not None:
                 self.__serializer(tmpFile, data[1:])
             else:
-                with open(tmpFile, 'wb') as f:
-                    with gzip.GzipFile(fileobj=f, mode='wb') as g:
+                with open(tmpFile, "wb") as f:
+                    with gzip.GzipFile(fileobj=f, mode="wb") as g:
                         pickle.dump(data, g)
 
             atomicReplace(tmpFile, self.__fileName)
@@ -104,13 +115,13 @@ class Serializer(object):
     def deserialize(self):
         if self.__fileName is None:
             with BytesIO(self.__inMemorySerializedData) as io:
-                with gzip.GzipFile(fileobj=io, mode='rb') as g:
+                with gzip.GzipFile(fileobj=io, mode="rb") as g:
                     return pickle.load(g)
 
         if self.__deserializer is not None:
             return (None,) + self.__deserializer(self.__fileName)
         else:
-            with open(self.__fileName, 'rb') as f:
+            with open(self.__fileName, "rb") as f:
                 with gzip.GzipFile(fileobj=f) as g:
                     return pickle.load(g)
 
@@ -124,31 +135,33 @@ class Serializer(object):
                     data = self.__inMemorySerializedData
                     assert data is not None
                     self.__transmissions[transmissionID] = transmission = {
-                        'transmitted': 0,
-                        'data': data,
+                        "transmitted": 0,
+                        "data": data,
                     }
                 else:
                     self.__transmissions[transmissionID] = transmission = {
-                        'file': open(self.__fileName, 'rb'),
-                        'transmitted': 0,
+                        "file": open(self.__fileName, "rb"),
+                        "transmitted": 0,
                     }
             except:
-                logger.exception('Failed to open file for transmission')
+                logger.exception("Failed to open file for transmission")
                 self.__transmissions.pop(transmissionID, None)
                 return None
-        isFirst = transmission['transmitted'] == 0
+        isFirst = transmission["transmitted"] == 0
         try:
             if self.__fileName is None:
-                transmitted = transmission['transmitted']
-                data = transmission['data'][transmitted:transmitted + self.__transmissionBatchSize]
+                transmitted = transmission["transmitted"]
+                data = transmission["data"][
+                    transmitted : transmitted + self.__transmissionBatchSize
+                ]
             else:
-                data = transmission['file'].read(self.__transmissionBatchSize)
+                data = transmission["file"].read(self.__transmissionBatchSize)
         except:
-            logger.exception('Error reading transmission file')
+            logger.exception("Error reading transmission file")
             self.__transmissions.pop(transmissionID, None)
             return False
         size = len(data)
-        transmission['transmitted'] += size
+        transmission["transmitted"] += size
         isLast = size == 0
         if isLast:
             self.__transmissions.pop(transmissionID, None)
@@ -173,14 +186,14 @@ class Serializer(object):
             return False
 
         # File case
-        tmpFile = self.__fileName + '.1.tmp'
+        tmpFile = self.__fileName + ".1.tmp"
         if isFirst:
             if self.__incomingTransmissionFile is not None:
                 self.__incomingTransmissionFile.close()
             try:
-                self.__incomingTransmissionFile = open(tmpFile, 'wb')
+                self.__incomingTransmissionFile = open(tmpFile, "wb")
             except:
-                logger.exception('Failed to open file for incoming transition')
+                logger.exception("Failed to open file for incoming transition")
                 self.__incomingTransmissionFile = None
                 return False
         elif self.__incomingTransmissionFile is None:
@@ -188,7 +201,7 @@ class Serializer(object):
         try:
             self.__incomingTransmissionFile.write(data)
         except:
-            logger.exception('Failed to write incoming transition data')
+            logger.exception("Failed to write incoming transition data")
             self.__incomingTransmissionFile = None
             return False
         if isLast:
@@ -197,7 +210,7 @@ class Serializer(object):
             try:
                 atomicReplace(tmpFile, self.__fileName)
             except:
-                logger.exception('Failed to rename temporary incoming transition file')
+                logger.exception("Failed to rename temporary incoming transition file")
                 return False
             return True
         return False

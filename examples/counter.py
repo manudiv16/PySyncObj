@@ -4,6 +4,7 @@ from __future__ import print_function
 import sys
 import time
 from functools import partial
+
 sys.path.append("../")
 from pysyncobj import SyncObj, replicated
 
@@ -29,16 +30,17 @@ class TestObj(SyncObj):
 
 
 def onAdd(res, err, cnt):
-    print('onAdd %d:' % cnt, res, err)
+    print("onAdd %d:" % cnt, res, err)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print('Usage: %s self_port partner1_port partner2_port ...' % sys.argv[0])
+        print("Usage: %s self_port partner1_port partner2_port ..." % sys.argv[0])
         sys.exit(-1)
 
     port = int(sys.argv[1])
-    partners = ['localhost:%d' % int(p) for p in sys.argv[2:]]
-    o = TestObj('localhost:%d' % port, partners)
+    partners = ["localhost:%d" % int(p) for p in sys.argv[2:]]
+    o = TestObj("localhost:%d" % port, partners)
     n = 0
     old_value = -1
     while True:

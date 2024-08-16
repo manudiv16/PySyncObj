@@ -22,8 +22,8 @@ class Node(object):
             setattr(self, key, kwargs[key])
 
     def __setattr__(self, name, value):
-        if name == 'id':
-            raise AttributeError('Node id is not mutable')
+        if name == "id":
+            raise AttributeError("Node id is not mutable")
         super(Node, self).__setattr__(name, value)
 
     def __eq__(self, other):
@@ -42,10 +42,24 @@ class Node(object):
 
     def __repr__(self):
         v = vars(self)
-        return '{}({}{})'.format(type(self).__name__, repr(self.id), (', ' + ', '.join('{} = {}'.format(key, repr(v[key])) for key in v if key != '_id')) if len(v) > 1 else '')
+        return "{}({}{})".format(
+            type(self).__name__,
+            repr(self.id),
+            (
+                (
+                    ", "
+                    + ", ".join(
+                        "{} = {}".format(key, repr(v[key])) for key in v if key != "_id"
+                    )
+                )
+                if len(v) > 1
+                else ""
+            ),
+        )
 
     def _destroy(self):
         pass
+
     @property
     def id(self):
         return self._id
@@ -67,9 +81,9 @@ class TCPNode(Node):
 
         super(TCPNode, self).__init__(address, **kwargs)
         self.__address = address
-        self.__host, port = address.rsplit(':', 1)
+        self.__host, port = address.rsplit(":", 1)
         self.__port = int(port)
-        #self.__ip = globalDnsResolver().resolve(self.host)
+        # self.__ip = globalDnsResolver().resolve(self.host)
 
     @property
     def address(self):
@@ -89,6 +103,18 @@ class TCPNode(Node):
 
     def __repr__(self):
         v = vars(self)
-        filtered = ['_id', '_TCPNode__address', '_TCPNode__host', '_TCPNode__port', '_TCPNode__ip']
-        formatted = ['{} = {}'.format(key, repr(v[key])) for key in v if key not in filtered]
-        return '{}({}{})'.format(type(self).__name__, repr(self.id), (', ' + ', '.join(formatted)) if len(formatted) else '')
+        filtered = [
+            "_id",
+            "_TCPNode__address",
+            "_TCPNode__host",
+            "_TCPNode__port",
+            "_TCPNode__ip",
+        ]
+        formatted = [
+            "{} = {}".format(key, repr(v[key])) for key in v if key not in filtered
+        ]
+        return "{}({}{})".format(
+            type(self).__name__,
+            repr(self.id),
+            (", " + ", ".join(formatted)) if len(formatted) else "",
+        )

@@ -5,18 +5,22 @@ from .tcp_connection import TcpConnection, _getAddrType
 
 
 class SERVER_STATE:
-    UNBINDED = 0,
+    UNBINDED = (0,)
     BINDED = 1
 
 
 class TcpServer(object):
 
     def __init__(
-            self, poller, host, port, onNewConnection,
-            sendBufferSize = 2 ** 13,
-            recvBufferSize = 2 ** 13,
-            connectionTimeout = 3.5,
-            keepalive = None,
+        self,
+        poller,
+        host,
+        port,
+        onNewConnection,
+        sendBufferSize=2**13,
+        recvBufferSize=2**13,
+        connectionTimeout=3.5,
+        keepalive=None,
     ):
         self.__poller = poller
         self.__host = host
@@ -33,17 +37,23 @@ class TcpServer(object):
 
     def bind(self):
         self.__socket = socket.socket(self.__hostAddrType, socket.SOCK_STREAM)
-        self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, self.__sendBufferSize)
-        self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.__recvBufferSize)
+        self.__socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_SNDBUF, self.__sendBufferSize
+        )
+        self.__socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_RCVBUF, self.__recvBufferSize
+        )
         self.__socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.__socket.setblocking(0)
         self.__socket.bind((self.__host, self.__port))
         self.__socket.listen(5)
         self.__fileno = self.__socket.fileno()
-        self.__poller.subscribe(self.__fileno,
-                                self.__onNewConnection,
-                                POLL_EVENT_TYPE.READ | POLL_EVENT_TYPE.ERROR)
+        self.__poller.subscribe(
+            self.__fileno,
+            self.__onNewConnection,
+            POLL_EVENT_TYPE.READ | POLL_EVENT_TYPE.ERROR,
+        )
         self.__state = SERVER_STATE.BINDED
 
     def unbind(self):
@@ -58,8 +68,12 @@ class TcpServer(object):
         if event & POLL_EVENT_TYPE.READ:
             try:
                 sock, addr = self.__socket.accept()
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, self.__sendBufferSize)
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.__recvBufferSize)
+                sock.setsockopt(
+                    socket.SOL_SOCKET, socket.SO_SNDBUF, self.__sendBufferSize
+                )
+                sock.setsockopt(
+                    socket.SOL_SOCKET, socket.SO_RCVBUF, self.__recvBufferSize
+                )
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 sock.setblocking(0)
                 conn = TcpConnection(

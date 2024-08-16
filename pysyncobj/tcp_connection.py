@@ -16,6 +16,7 @@ class CONNECTION_STATE:
     CONNECTING = 1
     CONNECTED = 2
 
+
 def _getAddrType(addr):
     try:
         socket.inet_aton(addr)
@@ -27,9 +28,11 @@ def _getAddrType(addr):
         return socket.AF_INET6
     except socket.error:
         pass
-    raise Exception('unknown address type')
+    raise Exception("unknown address type")
+
 
 import socket
+
 
 def set_keepalive_linux(sock, after_idle_sec=1, interval_sec=3, max_fails=5):
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -37,13 +40,18 @@ def set_keepalive_linux(sock, after_idle_sec=1, interval_sec=3, max_fails=5):
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, interval_sec)
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, max_fails)
 
+
 def set_keepalive_osx(sock, after_idle_sec=1, interval_sec=3, max_fails=5):
     TCP_KEEPALIVE = 0x10
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
     sock.setsockopt(socket.IPPROTO_TCP, TCP_KEEPALIVE, interval_sec)
 
+
 def set_keepalive_windows(sock, after_idle_sec=1, interval_sec=3, max_fails=5):
-    sock.ioctl(socket.SIO_KEEPALIVE_VALS, (1, after_idle_sec * 1000, interval_sec * 1000))
+    sock.ioctl(
+        socket.SIO_KEEPALIVE_VALS, (1, after_idle_sec * 1000, interval_sec * 1000)
+    )
+
 
 def set_keepalive(sock, after_idle_sec=1, interval_sec=3, max_fails=5):
     if platform == "linux" or platform == "linux2":
@@ -56,9 +64,18 @@ def set_keepalive(sock, after_idle_sec=1, interval_sec=3, max_fails=5):
 
 class TcpConnection(object):
 
-    def __init__(self, poller, onMessageReceived = None, onConnected = None, onDisconnected = None,
-                 socket=None, timeout=10.0, sendBufferSize = 2 ** 13, recvBufferSize = 2 ** 13,
-                 keepalive=None):
+    def __init__(
+        self,
+        poller,
+        onMessageReceived=None,
+        onConnected=None,
+        onDisconnected=None,
+        socket=None,
+        timeout=10.0,
+        sendBufferSize=2**13,
+        recvBufferSize=2**13,
+        keepalive=None,
+    ):
         self.sendRandKey = None
         self.recvRandKey = None
         self.recvLastTimestamp = 0
@@ -76,9 +93,11 @@ class TcpConnection(object):
             self.__fileno = socket.fileno()
             self.__state = CONNECTION_STATE.CONNECTED
             self.setSockoptKeepalive()
-            self.__poller.subscribe(self.__fileno,
-                                     self.__processConnection,
-                                     POLL_EVENT_TYPE.READ | POLL_EVENT_TYPE.WRITE | POLL_EVENT_TYPE.ERROR)
+            self.__poller.subscribe(
+                self.__fileno,
+                self.__processConnection,
+                POLL_EVENT_TYPE.READ | POLL_EVENT_TYPE.WRITE | POLL_EVENT_TYPE.ERROR,
+            )
         else:
             self.__state = CONNECTION_STATE.DISCONNECTED
             self.__fileno = None
@@ -117,8 +136,12 @@ class TcpConnection(object):
         self.__state = CONNECTION_STATE.DISCONNECTED
         self.__fileno = None
         self.__socket = socket.socket(_getAddrType(host), socket.SOCK_STREAM)
-        self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, self.__sendBufferSize)
-        self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.__recvBufferSize)
+        self.__socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_SNDBUF, self.__sendBufferSize
+        )
+        self.__socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_RCVBUF, self.__recvBufferSize
+        )
         self.__socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.setSockoptKeepalive()
         self.__socket.setblocking(0)
@@ -133,9 +156,11 @@ class TcpConnection(object):
                 return False
         self.__fileno = self.__socket.fileno()
         self.__state = CONNECTION_STATE.CONNECTING
-        self.__poller.subscribe(self.__fileno,
-                                 self.__processConnection,
-                                 POLL_EVENT_TYPE.READ | POLL_EVENT_TYPE.WRITE | POLL_EVENT_TYPE.ERROR)
+        self.__poller.subscribe(
+            self.__fileno,
+            self.__processConnection,
+            POLL_EVENT_TYPE.READ | POLL_EVENT_TYPE.WRITE | POLL_EVENT_TYPE.ERROR,
+        )
         return True
 
     def send(self, message):
@@ -144,7 +169,7 @@ class TcpConnection(object):
         data = zlib.compress(pickle.dumps(message), 3)
         if self.encryptor:
             data = self.encryptor.encrypt_at_time(data, int(monotonicTime()))
-        data = struct.pack('i', len(data)) + data
+        data = struct.pack("i", len(data)) + data
         self.__writeBuffer += data
         self.__trySendBuffer()
 
@@ -153,7 +178,10 @@ class TcpConnection(object):
 
     def disconnect(self):
         needCallDisconnect = False
-        if self.__onDisconnected is not None and self.__state != CONNECTION_STATE.DISCONNECTED:
+        if (
+            self.__onDisconnected is not None
+            and self.__state != CONNECTION_STATE.DISCONNECTED
+        ):
             needCallDisconnect = True
         self.sendRandKey = None
         self.recvRandKey = None
@@ -277,10 +305,10 @@ class TcpConnection(object):
     def __processParseMessage(self):
         if len(self.__readBuffer) < 4:
             return None
-        l = struct.unpack('i', self.__readBuffer[:4])[0]
+        l = struct.unpack("i", self.__readBuffer[:4])[0]
         if len(self.__readBuffer) - 4 < l:
             return None
-        data = self.__readBuffer[4:4 + l]
+        data = self.__readBuffer[4 : 4 + l]
         try:
             if self.encryptor:
                 dataTimestamp = self.encryptor.extract_timestamp(data)
@@ -296,7 +324,7 @@ class TcpConnection(object):
             # Why no logging of security errors?
             self.disconnect()
             return None
-        self.__readBuffer = self.__readBuffer[4 + l:]
+        self.__readBuffer = self.__readBuffer[4 + l :]
         return message
 
     @property

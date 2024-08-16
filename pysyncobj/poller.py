@@ -42,10 +42,12 @@ class SelectPoller(Poller):
         self.__descrToCallbacks.pop(descr, None)
 
     def poll(self, timeout):
-        rlist, wlist, xlist = select.select(list(self.__descrsRead),
-                                            list(self.__descrsWrite),
-                                            list(self.__descrsError),
-                                            timeout)
+        rlist, wlist, xlist = select.select(
+            list(self.__descrsRead),
+            list(self.__descrsWrite),
+            list(self.__descrsError),
+            timeout,
+        )
 
         allDescrs = set(rlist + wlist + xlist)
         rlist = set(rlist)
@@ -98,13 +100,13 @@ class PollPoller(Poller):
 
 
 def createPoller(pollerType):
-    if pollerType == 'auto':
-        if hasattr(select, 'poll'):
+    if pollerType == "auto":
+        if hasattr(select, "poll"):
             return PollPoller()
         return SelectPoller()
-    elif pollerType == 'poll':
+    elif pollerType == "poll":
         return PollPoller()
-    elif pollerType == 'select':
+    elif pollerType == "select":
         return SelectPoller()
     else:
-        raise Exception('unknown poller type')
+        raise Exception("unknown poller type")

@@ -5,6 +5,7 @@ except ImportError:
 from collections import deque
 import threading
 
+
 # According to benchmarks, standard Queue is slow.
 # Using FastQueue improves overall performance by ~15%
 class FastQueue(object):

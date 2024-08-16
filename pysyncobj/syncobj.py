@@ -116,7 +116,7 @@ class SyncObj(object):
         nodeClass=TCPNode,
         transport=None,
         transportClass=TCPTransport,
-        clustering_strategy=ClusterStrategy,
+        clustering_strategy: ClusterStrategy = None,
     ):
         """
         Main SyncObj class, you should inherit your own class from it.
@@ -142,10 +142,7 @@ class SyncObj(object):
         else:
             self.__conf = conf
 
-        if clustering_strategy:
-            self.__cluster_strategy = clustering_strategy
-        else:
-            self.__cluster_strategy = None
+        self.__cluster_strategy = clustering_strategy
 
         self.__conf.validate()
 
@@ -169,12 +166,12 @@ class SyncObj(object):
         consumers = newConsumers
 
         self.__consumers = consumers
-        if clustering_strategy and not selfNode:
-            selfNode = clustering_strategy.local_ip()
-        if not selfNode:
-            raise Exception(
-                "If clustering_strategy is not provided, selfNode is required"
-            )
+        if self.__cluster_strategy and not selfNode:
+            selfNode = self.__cluster_strategy.local_ip()
+        # if not selfNode:
+        #     raise Exception(
+        #         "If clustering_strategy is not provided, selfNode is required"
+        #     )
         origSelfNode = selfNode
         if not isinstance(selfNode, Node) and selfNode is not None:
             selfNode = nodeClass(selfNode)
@@ -783,8 +780,8 @@ class SyncObj(object):
                     self.__raftLastApplied += 1
                 except SyncObjExceptionWrongVer as e:
                     logger.error(
-                        "request to switch to unsupported code version (self version: %d, requested version: %d)"
-                        % (self.__selfCodeVersion, e.ver)
+                        "request to switch to unsupported code version (self version:"
+                        " %d, requested version: %d)" % (self.__selfCodeVersion, e.ver)
                     )
 
             if not self.__conf.appendEntriesUseBatch:
