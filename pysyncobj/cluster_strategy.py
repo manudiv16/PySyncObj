@@ -5,11 +5,6 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import signal
 import sys
-import os
-import logging
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 
 class ClusterStrategy(ABC):
@@ -53,33 +48,18 @@ class DnsPollingStrategy(ClusterStrategy):
 
 
 @dataclass
-class FileClusterStrategy(ClusterStrategy):
-    filename: str
-    poll_interval: int
-
-    def __read_file(self):
-        try:
-            with open(self.file_path, "r") as file:
-                return file.readlines()
-        except FileNotFoundError:
-            return []
-
-    def get_nodes(self) -> list[str]:
-        lines = self.__read_file()
-        file_nodes = {line.strip() for line in lines}
-        return list(file_nodes)
-
-
-@dataclass
 class StaticClusterStrategy(ClusterStrategy):
-    nodes: list[str]
-    poll_interval: int
+    nodes: set[str]
+    poll_interval: int = 0.5
 
     def get_nodes(self) -> list[str]:
         return self.nodes
 
+    def polling_interval(self):
+        return self.poll_interval
 
-class NetworkScanner(ClusterStrategy):
+
+class NetworkScannerStrategy(ClusterStrategy):
     def __init__(self, application_port, port, poll_interval=0.5):
         self.poll_interval = poll_interval
         self.port = port
@@ -179,32 +159,3 @@ class NetworkScanner(ClusterStrategy):
         self.devices = self.__scan_network()
         self.responses = self.__communicate_with_devices(self.devices)
         return self.responses
-
-
-def main(
-    port,
-    application_port,
-    application_domain,
-):
-    scanner = NetworkScanner(port=port, application_port=application_port)
-    dns_strategy = DnsPollingStrategy(domain=application_domain, poll_interval=1)
-    nodes = []
-    import time
-
-    for _ in range(10):
-        time.sleep(scanner.polling_interval)
-        nodes = scanner.get_nodes()
-        domain_nodes = dns_strategy.get_nodes()
-        logger.debug(f"Nodes: {nodes}")
-        logger.debug(f"Domain Nodes: {domain_nodes}")
-
-
-if __name__ == "__main__":
-    port_enviroment = os.environ.get("PORT", 45892)
-    application_port = os.environ.get("APPLICATION_PORT", 8080)
-    application_domain = os.environ.get("APPLICATION_DOMAIN", "pysyncobj")
-    main(
-        port=port_enviroment,
-        application_port=application_port,
-        application_domain=application_domain,
-    )

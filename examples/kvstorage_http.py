@@ -42,7 +42,6 @@ class KVRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             value = _g_kvstorage.get(self.path)
-            logger.debug(f"GET {self.path} => {value}")
 
             if value is None:
                 self.send_response(404)
@@ -63,7 +62,9 @@ class KVRequestHandler(BaseHTTPRequestHandler):
             value = self.rfile.read(int(self.headers.get("content-length"))).decode(
                 "utf-8"
             )
+            logger.info("POST %s %s" % (key, value))
             _g_kvstorage.set(key, value)
+
             self.send_response(201)
             self.send_header("Content-type", "text/plain")
             self.end_headers()
@@ -75,11 +76,8 @@ def main(port, cluster_port, application_domain):
 
     httpPort = int(port)
     dumpFile = "dump_file.bin"
-    # strategy = cluster_strategy.DnsPollingStrategy(
-    #     domain=application_domain, port=cluster_port, poll_interval=5
-    # )
-    strategy = cluster_strategy.NetworkScanner(
-        application_port=cluster_port, port=4948, poll_interval=5
+    strategy = cluster_strategy.DnsPollingStrategy(
+        domain=application_domain, port=cluster_port, poll_interval=5
     )
     global _g_kvstorage
     _g_kvstorage = KVStorage(dumpFile, strategy)
