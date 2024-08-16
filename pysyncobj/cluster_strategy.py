@@ -17,9 +17,12 @@ class ClusterStrategy(ABC):
     def get_nodes(self) -> set[str]:
         pass
 
-    @property
     @abstractmethod
     def polling_interval(self) -> int:
+        pass
+
+    @abstractmethod
+    def local_ip(self):
         pass
 
 
@@ -32,7 +35,6 @@ class DnsPollingStrategy(ClusterStrategy):
     def __get_local_ip(self):
         hostname = socket.gethostname()
         local_ip = socket.gethostbyname(hostname)
-        logger.debug(f"Local IP: {local_ip}")
         return local_ip
 
     def get_nodes(self) -> list[str]:
@@ -45,6 +47,9 @@ class DnsPollingStrategy(ClusterStrategy):
 
     def polling_interval(self):
         return self.poll_interval
+
+    def local_ip(self):
+        return f"{self.__get_local_ip()}:{self.port}"
 
 
 @dataclass
@@ -75,13 +80,13 @@ class StaticClusterStrategy(ClusterStrategy):
 
 
 class NetworkScanner(ClusterStrategy):
-    def __init__(self, application_port, port=45892):
-        self.polling_interval = 0.5
+    def __init__(self, application_port, port, poll_interval=0.5):
+        self.poll_interval = poll_interval
         self.port = port
         self.application_port = application_port
         self.devices = []
         self.responses = {}
-        self.local_ip = self.__get_local_ip()
+        self._local_ip = self.__get_local_ip()
         self.listener_thread = threading.Thread(target=self.__start_listener)
         self.listener_thread.daemon = True
         self.listener_thread.start()
@@ -89,16 +94,18 @@ class NetworkScanner(ClusterStrategy):
         signal.signal(signal.SIGTERM, self.__shutdown)
 
     def polling_interval(self):
-        return self.polling_interval
+        return self.poll_interval
+
+    def local_ip(self):
+        return f"{self._local_ip}:{self.application_port}"
 
     def __get_local_ip(self):
         hostname = socket.gethostname()
         local_ip = socket.gethostbyname(hostname)
-        logger.debug(f"Local IP: {local_ip}")
         return local_ip
 
     def __get_ip_range(self):
-        ip_parts = self.local_ip.split(".")
+        ip_parts = self._local_ip.split(".")
         ip_parts[-1] = "0"
         return ".".join(ip_parts) + "/24"
 
@@ -124,14 +131,14 @@ class NetworkScanner(ClusterStrategy):
             futures = [executor.submit(self.__scan_ip, ip) for ip in ip_list]
             for future in futures:
                 result = future.result()
-                if result and result != self.local_ip:
+                if result and result != self._local_ip:
                     open_port_devices.append(result)
         return open_port_devices
 
     def __communicate_with_devices(self, devices):
         responses = {}
         for ip in devices:
-            if ip == self.local_ip:
+            if ip == self._local_ip:
                 continue
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

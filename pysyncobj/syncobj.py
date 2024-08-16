@@ -109,7 +109,7 @@ class SyncObjConsumer(object):
 class SyncObj(object):
     def __init__(
         self,
-        selfNode,
+        selfNode=None,
         otherNodes=set(),
         conf=None,
         consumers=None,
@@ -169,7 +169,12 @@ class SyncObj(object):
         consumers = newConsumers
 
         self.__consumers = consumers
-
+        if clustering_strategy and not selfNode:
+            selfNode = clustering_strategy.local_ip()
+        if not selfNode:
+            raise Exception(
+                "If clustering_strategy is not provided, selfNode is required"
+            )
         origSelfNode = selfNode
         if not isinstance(selfNode, Node) and selfNode is not None:
             selfNode = nodeClass(selfNode)
@@ -184,7 +189,6 @@ class SyncObj(object):
         self.__readonlyNodes = set()  # set of Node
         self.__connectedNodes = set()  # set of Node
         self.__nodeClass = nodeClass
-
         self.__raftState = _RAFT_STATE.FOLLOWER
         self.__raftCurrentTerm = 0
         self.__votedForNodeId = None
@@ -298,6 +302,7 @@ class SyncObj(object):
 
         self.__thread = None
         self.__mainThread = None
+        self.__clusterThread = None
         self.__initialised = None
         self.__commandsQueue = FastQueue(self.__conf.commandsQueueSize)
         if not self.__conf.appendEntriesUseBatch and PIPE_NOTIFIER_ENABLED:
@@ -319,14 +324,24 @@ class SyncObj(object):
 
         self.__enabledCodeVersion = 0
 
-        if self.__conf.autoTick:
+        if self.__conf.autoTick and self.__cluster_strategy:
             self.__mainThread = threading.current_thread()
             self.__initialised = threading.Event()
-            self.__thread = threading.Thread(
-                target=SyncObj._autoTickThread, args=(weakref.proxy(self),)
-            )
-            self.__thread.start()
+            if self.__cluster_strategy:
+                self.__clusterThread = threading.Thread(
+                    target=SyncObj._clustering_polling_thread,
+                    args=(weakref.proxy(self),),
+                )
+                self.__clusterThread.start()
+
+            if self.__conf.autoTick:
+                self.__thread = threading.Thread(
+                    target=SyncObj._autoTickThread, args=(weakref.proxy(self),)
+                )
+                self.__thread.start()
+
             self.__initialised.wait()
+
             # while not self.__initialised.is_set():
             #     pass
         else:
@@ -591,6 +606,19 @@ class SyncObj(object):
             else:
                 self.__callErrCallback(FAIL_REASON.MISSING_LEADER, callback)
 
+    def _clustering_polling_thread(self):
+        while True:
+            time.sleep(self.__cluster_strategy.polling_interval())
+            discovery_nodes = {
+                self.__nodeClass(node) for node in self.__cluster_strategy.get_nodes()
+            }
+            logger.debug(f"New nodes: {discovery_nodes}")
+            logger.debug(f"Old nodes: {self.__otherNodes}")
+            added_nodes = discovery_nodes.difference(self.__otherNodes)
+            logger.debug(f"Added nodes: {added_nodes}")
+            for node in added_nodes:
+                self.addNodeToCluster(node)
+
     def _autoTickThread(self):
         try:
             self.__transport.tryGetReady()
@@ -622,16 +650,6 @@ class SyncObj(object):
         self._onTick(timeToWait)
 
     def _onTick(self, timeToWait=0.0):
-
-        if self.__cluster_strategy:
-            nodes = self.__cluster_strategy.get_nodes()
-            nodes = {
-                self.__nodeClass(node)
-                for node in nodes
-                if node not in self.__otherNodes
-            }
-            for node in nodes:
-                self._addNodeToCluster(node)
 
         if not self.__transport.ready:
             try:
