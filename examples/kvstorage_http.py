@@ -8,19 +8,15 @@ try:
 except ImportError:
     from http.server import BaseHTTPRequestHandler, HTTPServer
 sys.path.append("../")
-from pysyncobj import SyncObj, SyncObjConf, replicated, cluster_strategy
-from logging import getLogger, StreamHandler, DEBUG
-
-logger = getLogger()
+from pysyncobj import SyncObj, SyncObjConf, replicated
 
 
 class KVStorage(SyncObj):
-    def __init__(self, dumpFile, cluster_strategy):
+    def __init__(self, selfAddress, partnerAddrs, dumpFile):
         conf = SyncObjConf(
             fullDumpFile=dumpFile,
-            dynamicMembershipChange=True,
         )
-        super(KVStorage, self).__init__(conf=conf, clustering_strategy=cluster_strategy)
+        super(KVStorage, self).__init__(selfAddress, partnerAddrs, conf)
         self.__data = {}
 
     @replicated
@@ -62,9 +58,7 @@ class KVRequestHandler(BaseHTTPRequestHandler):
             value = self.rfile.read(int(self.headers.get("content-length"))).decode(
                 "utf-8"
             )
-            logger.info("POST %s %s" % (key, value))
             _g_kvstorage.set(key, value)
-
             self.send_response(201)
             self.send_header("Content-type", "text/plain")
             self.end_headers()
@@ -72,28 +66,24 @@ class KVRequestHandler(BaseHTTPRequestHandler):
             pass
 
 
-def main(port, cluster_port, application_domain):
+def main():
+    if len(sys.argv) < 5:
+        print(
+            "Usage: %s http_port dump_file.bin selfHost:port partner1Host:port partner2Host:port ..."
+            % sys.argv[0]
+        )
+        sys.exit(-1)
 
-    httpPort = int(port)
-    dumpFile = "dump_file.bin"
-    strategy = cluster_strategy.DnsPollingStrategy(
-        domain=application_domain, port=cluster_port, poll_interval=5
-    )
+    httpPort = int(sys.argv[1])
+    dumpFile = sys.argv[2]
+    selfAddr = sys.argv[3]
+    partners = sys.argv[4:]
+
     global _g_kvstorage
-    _g_kvstorage = KVStorage(dumpFile, strategy)
+    _g_kvstorage = KVStorage(selfAddr, partners, dumpFile)
     httpServer = HTTPServer(("", httpPort), KVRequestHandler)
-    logger.info("Starting http server on port %d..." % httpPort)
     httpServer.serve_forever()
 
 
 if __name__ == "__main__":
-    import os
-
-    application_port = os.environ.get("APPLICATION_PORT", 8080)
-    cluster_port = os.environ.get("CLUSTER_PORT", 45892)
-    application_domain = os.environ.get("APPLICATION_DOMAIN", "pysyncobj")
-    main(
-        port=application_port,
-        cluster_port=cluster_port,
-        application_domain=application_domain,
-    )
+    main()
