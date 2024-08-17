@@ -135,6 +135,8 @@ class SyncObj(object):
         :type transport: Transport or None
         :param transportClass: the Transport subclass to be used for transferring messages to and from other nodes
         :type transportClass: class
+        :param clustering_strategy: the strategy to be used for auto-discovery of nodes
+        :type clustering_strategy: class
         """
 
         if conf is None:
@@ -316,7 +318,7 @@ class SyncObj(object):
 
         self.__enabledCodeVersion = 0
 
-        if self.__conf.autoTick and self.__cluster_strategy:
+        if self.__conf.autoTick or self.__cluster_strategy:
             self.__mainThread = threading.current_thread()
             self.__initialised = threading.Event()
             if self.__cluster_strategy:
