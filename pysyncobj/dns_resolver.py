@@ -2,7 +2,7 @@ import time
 import socket
 import random
 import logging
-from .monotonic import monotonic as monotonicTime
+from time import monotonic as monotonicTime
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class DnsCachingResolver(object):
             prevIps = ips
             ips = self.__doResolve(hostname)
             if not ips:
-                logger.warning("failed to resolve hostname: " + hostname)
+                logger.warning(f"failed to resolve hostname: {hostname}")
                 ips = prevIps
             self.__cache[hostname] = (currTime, ips)
         return None if not ips else random.choice(ips)
@@ -39,7 +39,7 @@ class DnsCachingResolver(object):
         elif preferredAddrFamily == "ipv4":
             self.__preferredAddrFamily = socket.AF_INET
         elif preferredAddrFamily == "ipv6":
-            self.__preferredAddrFamily = socket.AF_INET
+            self.__preferredAddrFamily = socket.AF_INET6
         else:
             self.__preferredAddrFamily = preferredAddrFamily
 
@@ -60,7 +60,7 @@ class DnsCachingResolver(object):
             if not ips:
                 ips = list(set([addr[4][0] for addr in addrs]))
         except socket.gaierror:
-            logger.warning("failed to resolve host %s", hostname)
+            logger.warning(f"failed to resolve host {hostname}")
             ips = []
         return ips
 

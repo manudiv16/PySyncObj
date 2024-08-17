@@ -5,10 +5,9 @@ import zlib
 import struct
 
 import pysyncobj.pickle as pickle
-import pysyncobj.win_inet_pton
 
 from .poller import POLL_EVENT_TYPE
-from .monotonic import monotonic as monotonicTime
+from time import monotonic as monotonicTime
 
 
 class CONNECTION_STATE:

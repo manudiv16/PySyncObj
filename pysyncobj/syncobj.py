@@ -8,7 +8,6 @@ import collections
 import functools
 import struct
 import logging
-import copy
 import types
 
 try:
@@ -21,9 +20,6 @@ try:
 
 except ImportError:  # python3
     import queue as Queue
-
-    is_py3 = True
-    xrange = range
 
     def iteritems(v):
         return v.items()
@@ -48,8 +44,7 @@ from .journal import createJournal
 from .config import SyncObjConf, FAIL_REASON
 from .encryptor import HAS_CRYPTO, getEncryptor
 from .version import VERSION
-from .fast_queue import FastQueue
-from .monotonic import monotonic as monotonicTime
+from time import monotonic as monotonicTime
 from .cluster_strategy import ClusterStrategy
 
 logger = logging.getLogger(__name__)
@@ -95,15 +90,12 @@ class SyncObjConsumer(object):
 
     def _serialize(self):
         return dict(
-            [(k, v) for k, v in iteritems(self.__dict__) if k not in self.__properies]
+            [(k, v) for k, v in self.__dict__.items() if k not in self.__properies]
         )
 
-    def _deserialize(self, data):
-        for k, v in iteritems(data):
+    def _deserialize(self, data: dict):
+        for k, v in data.items():
             self.__dict__[k] = v
-
-
-# https://github.com/bakwc/PySyncObj
 
 
 class SyncObj(object):
@@ -298,7 +290,7 @@ class SyncObj(object):
         self.__mainThread = None
         self.__clusterThread = None
         self.__initialised = None
-        self.__commandsQueue = FastQueue(self.__conf.commandsQueueSize)
+        self.__commandsQueue = Queue.Queue(maxsize=self.__conf.commandsQueueSize)
         if not self.__conf.appendEntriesUseBatch and PIPE_NOTIFIER_ENABLED:
             self.__pipeNotifier = PipeNotifier(self._poller)
         self.__needLoadDumpFile = True
@@ -490,7 +482,7 @@ class SyncObj(object):
                 origFuncName = getattr(getattr(consumer, method), "origName")
                 funcVersions[(consumerID, origFuncName)].add(ver)
 
-        for funcName, versions in iteritems(funcVersions):
+        for funcName, versions in funcVersions.items():
             versions = sorted(list(versions))
             for v in versions:
                 if v > newVersion:
@@ -899,10 +891,10 @@ class SyncObj(object):
         status["commit_idx"] = self.raftCommitIndex
         status["raft_term"] = self.raftCurrentTerm
         status["next_node_idx_count"] = len(self.__raftNextIndex)
-        for node, idx in iteritems(self.__raftNextIndex):
+        for node, idx in self.__raftNextIndex.items():
             status["next_node_idx_server_" + node.id] = idx
         status["match_idx_count"] = len(self.__raftMatchIndex)
-        for node, idx in iteritems(self.__raftMatchIndex):
+        for node, idx in self.__raftMatchIndex.items():
             status["match_idx_server_" + node.id] = idx
         status["leader_commit_idx"] = self.__leaderCommitIndex
         status["uptime"] = int(monotonicTime() - self.__startTime)
@@ -916,7 +908,7 @@ class SyncObj(object):
     def printStatus(self):
         """Dumps different debug info about cluster to default logger"""
         status = self.getStatus()
-        for k, v in iteritems(status):
+        for k, v in status.items():
             logger.info("%s: %s" % (str(k), str(v)))
 
     def _printStatus(self):
@@ -1336,7 +1328,7 @@ class SyncObj(object):
 
                     if len(entries) == 1 and len(entries[0][0]) >= batchSizeBytes:
                         entry = pickle.dumps(entries[0])
-                        for pos in xrange(0, len(entry), batchSizeBytes):
+                        for pos in range(0, len(entry), batchSizeBytes):
                             currData = entry[pos : pos + batchSizeBytes]
                             if pos == 0:
                                 transmission = "start"
@@ -1530,11 +1522,7 @@ class SyncObj(object):
 
         if self.__conf.serializer is None:
             selfData = dict(
-                [
-                    (k, v)
-                    for k, v in iteritems(self.__dict__)
-                    if k not in self.__properies
-                ]
+                [(k, v) for k, v in self.__dict__.items() if k not in self.__properies]
             )
             data = selfData
             if self.__consumers:
@@ -1554,13 +1542,13 @@ class SyncObj(object):
             data = self.__serializer.deserialize()
             if data[0] is not None:
                 if self.__consumers:
-                    selfData = data[0][0]
+                    selfData: dict = data[0][0]
                     consumersData = data[0][1:]
                 else:
-                    selfData = data[0]
+                    selfData: dict = data[0]
                     consumersData = []
 
-                for k, v in iteritems(selfData):
+                for k, v in selfData.items():
                     self.__dict__[k] = v
 
                 for i, consumer in enumerate(self.__consumers):
@@ -1606,16 +1594,10 @@ class SyncObj(object):
 
 
 def __copy_func(f, name):
-    if is_py3:
-        res = types.FunctionType(
-            f.__code__, f.__globals__, name, f.__defaults__, f.__closure__
-        )
-        res.__dict__ = f.__dict__
-    else:
-        res = types.FunctionType(
-            f.func_code, f.func_globals, name, f.func_defaults, f.func_closure
-        )
-        res.func_dict = f.func_dict
+    res = types.FunctionType(
+        f.__code__, f.__globals__, name, f.__defaults__, f.__closure__
+    )
+    res.__dict__ = f.__dict__
     return res
 
 
@@ -1694,7 +1676,7 @@ def replicated(*decArgs, **decKwargs):
                         raise SyncObjException(asyncResult.error)
                     return asyncResult.result
 
-        func_dict = newFunc.__dict__ if is_py3 else newFunc.func_dict
+        func_dict = newFunc.__dict__
         func_dict["replicated"] = True
         func_dict["ver"] = int(decKwargs.get("ver", 0))
         func_dict["origName"] = func.__name__
@@ -1730,7 +1712,7 @@ def replicated_sync(*decArgs, **decKwargs):
                 kwargs.setdefault("sync", True)
                 return replicated(func)(self, *args, **kwargs)
 
-        func_dict = newFunc.__dict__ if is_py3 else newFunc.func_dict
+        func_dict = newFunc.__dict__
         func_dict["replicated"] = True
         func_dict["ver"] = int(decKwargs.get("ver", 0))
         func_dict["origName"] = func.__name__

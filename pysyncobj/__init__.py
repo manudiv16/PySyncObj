@@ -11,5 +11,6 @@ from .syncobj import (
     SERIALIZER_STATE,
     SyncObjConsumer,
     _RAFT_STATE,
+    ClusterStrategy,
 )
 from .utility import TcpUtility

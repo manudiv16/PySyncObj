@@ -1,41 +1,52 @@
 import os
 import sys
 import ctypes
+from ctypes import wintypes
 
-if hasattr(ctypes, "windll"):  # pragma: no cover
-    CreateTransaction = ctypes.windll.ktmw32.CreateTransaction
-    CommitTransaction = ctypes.windll.ktmw32.CommitTransaction
-    MoveFileTransacted = ctypes.windll.kernel32.MoveFileTransactedW
-    CloseHandle = ctypes.windll.kernel32.CloseHandle
+if hasattr(ctypes, "windll"):
+    # If running on Windows, use the Windows API for atomic file replacement
 
-    MOVEFILE_REPLACE_EXISTING = 0x1
-    MOVEFILE_WRITE_THROUGH = 0x8
-
-    if sys.version_info >= (3, 0):
-        unicode = str
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
     def atomicReplace(oldPath, newPath):
-        if not isinstance(oldPath, unicode):
-            oldPath = unicode(oldPath, sys.getfilesystemencoding())
-        if not isinstance(newPath, unicode):
-            newPath = unicode(newPath, sys.getfilesystemencoding())
-        ta = CreateTransaction(None, 0, 0, 0, 0, 1000, "atomic_replace")
-        if ta == -1:
-            return False
-        res = MoveFileTransacted(
-            oldPath,
-            newPath,
-            None,
-            None,
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-            ta,
+        # Convert paths to strings if they are not already
+        if not isinstance(oldPath, str):
+            oldPath = str(oldPath, sys.getfilesystemencoding())
+        if not isinstance(newPath, str):
+            newPath = str(newPath, sys.getfilesystemencoding())
+
+        # Define move flags for atomic replacement
+        MOVEFILE_REPLACE_EXISTING = 1
+        MOVEFILE_WRITE_THROUGH = 8
+        move_flags = wintypes.DWORD(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)
+
+        # Create a transaction for atomic file operations
+        transaction = kernel32.CreateTransaction(
+            None, 0, 0, 0, 0, 1000, "atomic_replace"
         )
-        if not res:
-            CloseHandle(ta)
+        if transaction == ctypes.c_void_p(-1).value:
             return False
-        res = CommitTransaction(ta)
-        CloseHandle(ta)
-        return bool(res)
+
+        try:
+            # Move the file atomically within the transaction
+            res = kernel32.MoveFileTransactedW(
+                oldPath,
+                newPath,
+                None,
+                None,
+                ctypes.byref(move_flags),
+                transaction,
+            )
+            if not res:
+                return False
+
+            # Commit the transaction to make the file replacement permanent
+            res = kernel32.CommitTransaction(transaction)
+            return bool(res)
+        finally:
+            # Close the transaction handle
+            kernel32.CloseHandle(transaction)
 
 else:
+    # If not running on Windows, use os.rename for atomic file replacement
     atomicReplace = os.rename

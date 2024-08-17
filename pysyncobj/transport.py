@@ -1,6 +1,6 @@
 from .config import FAIL_REASON
 from .dns_resolver import globalDnsResolver
-from .monotonic import monotonic as monotonicTime
+from time import monotonic as monotonicTime
 from .node import Node, TCPNode
 from .tcp_connection import TcpConnection, CONNECTION_STATE
 from .tcp_server import TcpServer

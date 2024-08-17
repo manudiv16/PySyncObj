@@ -2,45 +2,116 @@ import os
 import mmap
 import struct
 import shutil
-
+from abc import ABC, abstractmethod
 from .version import VERSION
 from .pickle import to_bytes, loads, dumps
 
 
-class Journal(object):
+class Journal(ABC):
+    """
+    Base class for journal implementations.
+    """
 
+    @abstractmethod
     def add(self, command, idx, term):
-        raise NotImplementedError
+        """
+        Add a new entry to the journal.
 
+        Args:
+            command: The command to be added.
+            idx: The index of the entry.
+            term: The term of the entry.
+        """
+        pass
+
+    @abstractmethod
     def clear(self):
-        raise NotImplementedError
+        """
+        Clear the journal, removing all entries.
+        """
+        pass
 
+    @abstractmethod
     def deleteEntriesFrom(self, entryFrom):
-        raise NotImplementedError
+        """
+        Delete entries from the specified index onwards.
 
+        Args:
+            entryFrom: The index from which to delete entries.
+        """
+        pass
+
+    @abstractmethod
     def deleteEntriesTo(self, entryTo):
-        raise NotImplementedError
+        """
+        Delete entries up to the specified index.
 
+        Args:
+            entryTo: The index up to which to delete entries.
+        """
+        pass
+
+    @abstractmethod
     def __getitem__(self, item):
-        raise NotImplementedError
+        """
+        Get the entry at the specified index.
 
+        Args:
+            item: The index of the entry.
+
+        Returns:
+            The entry at the specified index.
+        """
+        pass
+
+    @abstractmethod
     def __len__(self):
-        raise NotImplementedError
+        """
+        Get the number of entries in the journal.
 
+        Returns:
+            The number of entries in the journal.
+        """
+        pass
+
+    @abstractmethod
     def _destroy(self):
-        raise NotImplementedError
+        """
+        Destroy the journal, releasing any resources.
+        """
+        pass
 
+    @abstractmethod
     def setRaftCommitIndex(self, raftCommitIndex):
-        raise NotImplementedError
+        """
+        Set the Raft commit index.
 
+        Args:
+            raftCommitIndex: The Raft commit index.
+        """
+        pass
+
+    @abstractmethod
     def getRaftCommitIndex(self):
-        raise NotImplementedError
+        """
+        Get the Raft commit index.
+
+        Returns:
+            The Raft commit index.
+        """
+        pass
 
     def onOneSecondTimer(self):
+        """
+        Perform any necessary actions on a one-second timer tick.
+        """
         pass
 
 
 class MemoryJournal(Journal):
+    """
+    In-memory journal implementation.
+    """
 
     def __init__(self):
         self.__journal = []
@@ -76,6 +147,9 @@ class MemoryJournal(Journal):
 
 
 class ResizableFile(object):
+    """
+    Resizable file implementation.
+    """
 
     def __init__(
         self, fileName, initialSize=1024, resizeFactor=2.0, defaultContent=None
@@ -93,7 +167,7 @@ class ResizableFile(object):
             try:
                 self.__mm.resize(initialSize)
             except SystemError:
-                self.__extand(initialSize - currSize)
+                self.__extend(initialSize - currSize)
 
     def write(self, offset, values):
         size = len(values)
@@ -102,13 +176,13 @@ class ResizableFile(object):
             try:
                 self.__mm.resize(int(self.__mm.size() * self.__resizeFactor))
             except SystemError:
-                self.__extand(int(self.__mm.size() * self.__resizeFactor) - currSize)
+                self.__extend(int(self.__mm.size() * self.__resizeFactor) - currSize)
         self.__mm[offset : offset + size] = values
 
     def read(self, offset, size):
         return self.__mm[offset : offset + size]
 
-    def __extand(self, bytesToAdd):
+    def __extend(self, bytesToAdd):
         self.__mm.close()
         self.__f.close()
         with open(self.__fileName, "ab") as f:
@@ -126,6 +200,10 @@ class ResizableFile(object):
 
 
 class MetaStorer(object):
+    """
+    Meta data storer implementation.
+    """
+
     def __init__(self, path):
         self.__path = path
 
@@ -166,6 +244,9 @@ LAST_RECORD_OFFSET_OFFSET = NAME_SIZE + VERSION_SIZE + 4
 
 
 class FileJournal(Journal):
+    """
+    File-based journal implementation.
+    """
 
     def __init__(self, journalFile):
         self.__journalFile = ResizableFile(
@@ -268,6 +349,15 @@ class FileJournal(Journal):
 
 
 def createJournal(journalFile=None):
+    """
+    Factory function to create a journal.
+
+    Args:
+        journalFile: The file path for the journal. If None, a MemoryJournal is created.
+
+    Returns:
+        An instance of the appropriate journal implementation.
+    """
     if journalFile is None:
         return MemoryJournal()
     return FileJournal(journalFile)
